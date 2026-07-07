@@ -102,6 +102,25 @@ _G.SelectedItems = {
     ["Zeppeli's Hat"] = false,
 }
 
+_G.ItemsToSell = {
+    ["Ancient Scroll"] = true,
+    ["Caesar's Headband"] = true,
+    ["Clackers"] = true,
+    ["Diamond"] = true,
+    ["Dio's Diary"] = true,
+    ["Gold Coin"] = true,
+    ["Gold Umbrella"] = true,
+    ["Mysterious Arrow"] = true,
+    ["Pure Rokakaka"] = true,
+    ["Quinton's Glove"] = true,
+    ["Rib Cage of The Saint's Corpse"] = true,
+    ["Rokakaka"] = true,
+    ["Steel Ball"] = true,
+    ["Stone Mask"] = true,
+    ["Zepellin's Headband"] = true,
+    ["Zeppeli's Hat"] = true,
+}
+
 local bannedCoordinates = {}
 local espObjects = {}
 local itemCache = {}
@@ -526,7 +545,7 @@ local function processSellQueue()
 
         local item = table.remove(sellQueue, 1)
         local backpack = player:FindFirstChild("Backpack")
-        if item and backpack and item.Parent == backpack and item:IsA("Tool") and item.Name ~= "Lucky Arrow" then
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and _G.ItemsToSell[item.Name] == true then
             local char, _, hum = getCharacter()
             local remote = char and char:FindFirstChild("RemoteEvent")
             if remote and hum then
@@ -547,7 +566,7 @@ end
 
 local function queueItemForSale(item)
     if not _G.AutoSell then return end
-    if not item or not item:IsA("Tool") or item.Name == "Lucky Arrow" then return end
+    if not item or not item:IsA("Tool") or _G.ItemsToSell[item.Name] ~= true then return end
     table.insert(sellQueue, item)
     task.spawn(processSellQueue)
 end
@@ -568,7 +587,7 @@ end)
 if player:FindFirstChild("Backpack") then setupBackpackListener(player.Backpack) end
 
 ShopTab:CreateToggle({
-    Name = "Автопродаж (крім Lucky Arrow)",
+    Name = "Автопродаж",
     CurrentValue = false,
     Flag = "AutoSell_Toggle",
     Callback = function(value)
@@ -585,6 +604,43 @@ ShopTab:CreateToggle({
         end
     end,
 })
+
+ShopTab:CreateSection("Фільтр продажу")
+
+ShopTab:CreateButton({
+    Name = "Увімкнути все",
+    Callback = function()
+        for name in pairs(_G.ItemsToSell) do
+            _G.ItemsToSell[name] = true
+        end
+    end,
+})
+
+ShopTab:CreateButton({
+    Name = "Вимкнути все",
+    Callback = function()
+        for name in pairs(_G.ItemsToSell) do
+            _G.ItemsToSell[name] = false
+        end
+    end,
+})
+
+local sortedSellItems = {}
+for name in pairs(_G.ItemsToSell) do
+    table.insert(sortedSellItems, name)
+end
+table.sort(sortedSellItems)
+
+for _, itemName in ipairs(sortedSellItems) do
+    ShopTab:CreateToggle({
+        Name = itemName,
+        CurrentValue = _G.ItemsToSell[itemName],
+        Flag = "SellFilter_" .. itemName,
+        Callback = function(value)
+            _G.ItemsToSell[itemName] = value
+        end,
+    })
+end
 
 ShopTab:CreateToggle({
     Name = "Автокупівля (Lucky Arrow)",
