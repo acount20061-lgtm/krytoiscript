@@ -121,12 +121,10 @@ _G.ItemsToSell = {
     ["Zeppeli's Hat"] = true,
 }
 
-local bannedCoordinates = {}
 local espObjects = {}
 local itemCache = {}
 local lastCacheRefresh = 0
 local CACHE_REFRESH_INTERVAL = 1.25
-local BAN_TTL = 45
 
 local farmThreadActive = false
 local farmStatusText = "Очікування..."
@@ -134,6 +132,26 @@ local farmStatusText = "Очікування..."
 local flightState
 local noclipConnection
 local antiAfkConnection
+
+-- ====================
+-- ГЛОБАЛЬНИЙ BYPASS PROMPTS
+-- ====================
+task.spawn(function()
+    while true do
+        pcall(function()
+            for _, desc in ipairs(workspace:GetDescendants()) do
+                if desc:IsA("ProximityPrompt") then
+                    pcall(function()
+                        desc.RequiresLineOfSight = false
+                        desc.MaxActivationDistance = math.huge
+                        desc.Enabled = true
+                    end)
+                end
+            end
+        end)
+        task.wait(1.5)
+    end
+end)
 
 -- ====================
 -- ДОПОМІЖНІ ФУНКЦІЇ
@@ -150,54 +168,22 @@ local function safeGetPartPosition(part)
     return nil
 end
 
-local function safeGetPartTransparency(part)
-    local ok, transparency = pcall(function()
-        return part.Transparency
-    end)
-    if ok then return transparency end
-    return 1
-end
-
-local function safeIsPromptEnabled(prompt)
-    local ok, enabled = pcall(function()
-        return prompt.Enabled
-    end)
-    if ok then return enabled end
-    return false
-end
-
-local function safeGetPromptObjectText(prompt)
-    local ok, text = pcall(function()
-        return prompt.ObjectText
-    end)
-    if ok then return text end
-    return nil
-end
-
 local function safeUnlockPrompt(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
     pcall(function()
         prompt.RequiresLineOfSight = false
         prompt.HoldDuration = 0
-        prompt.MaxActivationDistance = 50
+        prompt.MaxActivationDistance = math.huge
         prompt.Enabled = true
     end)
 end
 
-local function UnlockPrompts()
-    while true do
-        pcall(function()
-            for _, desc in ipairs(workspace:GetDescendants()) do
-                if desc:IsA("ProximityPrompt") then
-                    safeUnlockPrompt(desc)
-                end
-            end
-        end)
-        task.wait(0.5)
-    end
+local function isCoordinateBanned(pos)
+    return math.abs(pos.X) < 1.5
+        and math.abs(pos.Z) < 1.5
+        and pos.Y >= -0.3
+        and pos.Y <= 1.5
 end
-
-task.spawn(UnlockPrompts)
 
 local function isInvalidItemPart(obj)
     if not obj then return true end
@@ -212,29 +198,6 @@ local function isInvalidItemPart(obj)
         current = current.Parent
     end
     return false
-end
-
-local function cleanupBannedCoordinates()
-    local now = tick()
-    for i = #bannedCoordinates, 1, -1 do
-        if now - bannedCoordinates[i].time > BAN_TTL then
-            table.remove(bannedCoordinates, i)
-        end
-    end
-end
-
-local function isCoordinateBanned(pos)
-    cleanupBannedCoordinates()
-    for _, entry in ipairs(bannedCoordinates) do
-        if (pos - entry.pos).Magnitude < 3 then
-            return true
-        end
-    end
-    return false
-end
-
-local function banCoordinate(pos)
-    table.insert(bannedCoordinates, { pos = pos, time = tick() })
 end
 
 local function resolveItemFromPrompt(desc)
@@ -257,8 +220,10 @@ local function resolveItemFromPrompt(desc)
     elseif model and _G.SelectedItems[model.Name] ~= nil then
         itemName = model.Name
     else
-        local objectText = safeGetPromptObjectText(desc)
-        if objectText and _G.SelectedItems[objectText] ~= nil then
+        local objectTextOk, objectText = pcall(function()
+            return desc.ObjectText
+        end)
+        if objectTextOk and objectText and _G.SelectedItems[objectText] ~= nil then
             itemName = objectText
         end
     end
@@ -275,17 +240,8 @@ local function resolveItemFromPrompt(desc)
         return nil
     end
 
-    local transparency = safeGetPartTransparency(targetPart)
-    if transparency >= 1 then
-        return nil
-    end
-
     local position = safeGetPartPosition(targetPart)
     if not position or isCoordinateBanned(position) or isInvalidItemPart(targetPart) then
-        return nil
-    end
-
-    if not safeIsPromptEnabled(desc) then
         return nil
     end
 
@@ -365,8 +321,7 @@ local function applyESP(part, name)
     if espObjects[part] then return end
 
     local position = safeGetPartPosition(part)
-    local transparency = safeGetPartTransparency(part)
-    if not part or transparency >= 1 or not position or isCoordinateBanned(position) or isInvalidItemPart(part) then
+    if not part or not position or isCoordinateBanned(position) or isInvalidItemPart(part) then
         return
     end
 
@@ -685,6 +640,13 @@ MainTab:CreateButton({
     end,
 })
 
+MainTab:CreateButton({
+    Name = "Зберегти поточний конфіг",
+    Callback = function()
+        pcall(function() Rayfield:SaveConfiguration() end)
+    end,
+})
+
 -- ====================
 -- МАГАЗИН
 -- ====================
@@ -891,7 +853,6 @@ FarmTab:CreateToggle({
 
                 setFarmStatus("Лечу до: " .. targetItem.name)
                 if moveToItemAndPickup(targetItem) then
-                    banCoordinate(targetItem.position)
                     if espObjects[targetItem.part] then
                         pcall(function()
                             espObjects[targetItem.part]:Destroy()
@@ -951,7 +912,7 @@ for _, itemName in ipairs(sortedItems) do
     })
 end
 
--- ESP цикл (використовує кеш)
+-- ESP цикл
 task.spawn(function()
     while true do
         task.wait(0.8)
@@ -992,27 +953,17 @@ MiscTab:CreateToggle({
     end,
 })
 
-MiscTab:CreateButton({
-    Name = "Очистити заблоковані координати",
-    Callback = function()
-        table.clear(bannedCoordinates)
-        lastCacheRefresh = 0
-        Rayfield:Notify({
-            Title = "UA Killer Hub",
-            Content = "Чорний список координат очищено",
-            Duration = 3,
-        })
-    end,
-})
-
 if shouldAutoLoad then
-    pcall(function()
-        local configPath = "UAKillerHub/YBA_Config.json"
-        if (isfile and isfile(configPath)) or not isfile then
-            Rayfield:LoadConfiguration()
-        elseif writefile then
-            writefile(autoLoadFile, "false")
-        end
+    task.spawn(function()
+        task.wait(3.5)
+        pcall(function()
+            local configPath = "UAKillerHub/YBA_Config.json"
+            if (isfile and isfile(configPath)) or not isfile then
+                Rayfield:LoadConfiguration()
+            elseif writefile then
+                writefile(autoLoadFile, "false")
+            end
+        end)
     end)
 end
 
