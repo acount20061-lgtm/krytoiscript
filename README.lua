@@ -9,8 +9,8 @@ local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
 
 task.spawn(function()
-    repeat task.wait(0.5) until player.Character and player.Character:FindFirstChild("RemoteEvent")
-    local remote = player.Character:FindFirstChild("RemoteEvent")
+    repeat task.wait(0.5) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("RemoteEvent")
+    local remote = LocalPlayer.Character:FindFirstChild("RemoteEvent")
     if remote then
         remote:FireServer("PressedPlay")
     end
