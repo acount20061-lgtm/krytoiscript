@@ -483,6 +483,18 @@ MainTab:CreateButton({
     end,
 })
 
+MainTab:CreateButton({
+    Name = "Зберегти поточний конфіг",
+    Callback = function()
+        pcall(function() Rayfield:SaveConfiguration() end)
+        Rayfield:Notify({
+            Title = "Успіх",
+            Content = "Налаштування збережено!",
+            Duration = 3,
+        })
+    end,
+})
+
 MainTab:CreateSection("Характеристики")
 
 local JP_Value = 50
