@@ -520,7 +520,8 @@ local DontSell = {
     ["Green Candy"] = true,
     ["Yellow Candy"] = true,
     ["Blue Candy"] = true,
-    ["Red Candy"] = true
+    ["Red Candy"] = true,
+    ["Lucky Stone Mask"] = true
 }
 local sellQueue = {}
 local isSelling = false
