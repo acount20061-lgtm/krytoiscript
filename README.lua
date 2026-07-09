@@ -7,6 +7,15 @@ local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
 
 local player = Players.LocalPlayer
+
+task.spawn(function()
+    repeat task.wait(0.5) until player.Character and player.Character:FindFirstChild("RemoteEvent")
+    local remote = player.Character:FindFirstChild("RemoteEvent")
+    if remote then
+        remote:FireServer("PressedPlay")
+    end
+end)
+
 local autoLoadFile = "UAKillerHub/YBA_AutoLoad.txt"
 local shouldAutoLoad = false
 -- =======================================================
