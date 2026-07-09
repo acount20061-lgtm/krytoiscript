@@ -514,6 +514,14 @@ MainTab:CreateSlider({
 -- ====================
 -- МАГАЗИН
 -- ====================
+local DontSell = {
+    ["Lucky Arrow"] = true,
+    ["Christmas Present"] = true,
+    ["Green Candy"] = true,
+    ["Yellow Candy"] = true,
+    ["Blue Candy"] = true,
+    ["Red Candy"] = true
+}
 local sellQueue = {}
 local isSelling = false
 
@@ -526,7 +534,7 @@ local function processSellQueue()
 
         local item = table.remove(sellQueue, 1)
         local backpack = player:FindFirstChild("Backpack")
-        if item and backpack and item.Parent == backpack and item:IsA("Tool") and item.Name ~= "Lucky Arrow" then
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
             local char, _, hum = getCharacter()
             local remote = char and char:FindFirstChild("RemoteEvent")
             if remote and hum then
@@ -547,7 +555,7 @@ end
 
 local function queueItemForSale(item)
     if not _G.AutoSell then return end
-    if not item or not item:IsA("Tool") or item.Name == "Lucky Arrow" then return end
+    if not item or not item:IsA("Tool") or DontSell[item.Name] then return end
     table.insert(sellQueue, item)
     task.spawn(processSellQueue)
 end
