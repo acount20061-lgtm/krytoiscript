@@ -466,15 +466,14 @@ local MiscTab = Window:CreateTab("Інше", 4483362458)
 -- ====================
 MainTab:CreateSection("Налаштування конфігу")
 
-MainTab:CreateToggle({
-    Name = "Автозавантаження конфігу при старті",
-    CurrentValue = shouldAutoLoad,
-    Callback = function(value)
+if shouldAutoLoad then
+    task.spawn(function()
+        task.wait(2) -- Даємо 2 секунди, щоб інтерфейс точно прогрузився
         pcall(function()
-            if writefile then writefile(autoLoadFile, tostring(value)) end
+            Rayfield:LoadConfiguration()
         end)
-    end,
-})
+    end)
+end
 
 MainTab:CreateButton({
     Name = "Завантажити конфіг вручну",
