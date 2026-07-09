@@ -38,6 +38,18 @@ if not player.Character then
 end
 
 repeat task.wait() until player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+-- =======================================================
+-- АКТИВАЦІЯ ITEM MAGNITUDE BYPASS
+-- =======================================================
+local OldIndexItem;
+OldIndexItem = hookmetamethod(player.Character.PrimaryPart.Position, "__index", newcclosure(function(self, Key)
+    if not checkcaller() and Key:lower() == 'magnitude' and getcallingscript().Name == "ItemSpawn" then
+        return 0
+    end
+                                                
+    return OldIndexItem(self, Key)
+end))
+-- =======================================================
 
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
