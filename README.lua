@@ -20,6 +20,23 @@ OldIndexItem = hookmetamethod(player.Character.PrimaryPart.Position, "__index", 
                                                 
     return OldIndexItem(self, Key)
 end))
+-- ====================================================
+-- CRASH & WALKSPEED BYPASS
+-- ====================================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local FunctionLibrary = require(ReplicatedStorage.Modules.FunctionLibrary)
+local OldPcall = FunctionLibrary.pcall -- Зберігаємо оригінальну функцію
+
+FunctionLibrary.pcall = function(...)
+    local args = {...}
+    
+    -- Перевірка на анти-чит YBA (11 апвалуес)
+    if type(args[1]) == 'function' and #getupvalues(args[1]) == 11 then
+        return -- Ігноруємо виклик, щоб не отримати краш
+    end
+ 
+    return OldPcall(...) -- Виконуємо оригінальну функцію
+end
 -- =======================================================
 
 -- Налаштування автозавантаження
