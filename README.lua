@@ -467,11 +467,13 @@ local MiscTab = Window:CreateTab("Інше", 4483362458)
 MainTab:CreateSection("Налаштування конфігу")
 
 if shouldAutoLoad then
-    task.spawn(function()
-        task.wait(2) -- Даємо 2 секунди, щоб інтерфейс точно прогрузився
-        pcall(function()
+    pcall(function()
+        local configPath = "UAKillerHub/YBA_Config.json"
+        if (isfile and isfile(configPath)) or not isfile then
             Rayfield:LoadConfiguration()
-        end)
+        elseif writefile then
+            writefile(autoLoadFile, "false")
+        end
     end)
 end
 
