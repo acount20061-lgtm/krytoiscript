@@ -66,7 +66,7 @@ task.spawn(function()
     log.Text = "🚀 ТИСНУ PLAY..."
     
     -- 2. Спроби натиснути кнопку (5 разів з інтервалом)
-    for i = 1, 5 do
+    for i = 1, 1 do
         if not isRunning then break end
         
         -- Надсилаємо серверний сигнал про натискання
