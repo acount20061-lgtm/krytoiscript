@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
 
 local player = Players.LocalPlayer
-local autoLoadFile = "YBA_AutoLoad.txt"
+local autoLoadFile = "UAKillerHub/YBA_AutoLoad.txt"
 local shouldAutoLoad = false
 -- =======================================================
 -- АКТИВАЦІЯ ITEM MAGNITUDE BYPASS
@@ -22,13 +22,13 @@ OldIndexItem = hookmetamethod(player.Character.PrimaryPart.Position, "__index", 
 end))
 -- =======================================================
 
+-- Налаштування автозавантаження
 pcall(function()
+    -- Створюємо папку, якщо її немає
     if makefolder and not isfolder("UAKillerHub") then
         makefolder("UAKillerHub")
     end
-end)
-
-pcall(function()
+    -- Читаємо статус
     if isfile and isfile(autoLoadFile) then
         shouldAutoLoad = (readfile(autoLoadFile) == "true")
     elseif writefile then
@@ -466,16 +466,15 @@ local MiscTab = Window:CreateTab("Інше", 4483362458)
 -- ====================
 MainTab:CreateSection("Налаштування конфігу")
 
-if shouldAutoLoad then
-    pcall(function()
-        local configPath = "UAKillerHub/YBA_Config.json"
-        if (isfile and isfile(configPath)) or not isfile then
-            Rayfield:LoadConfiguration()
-        elseif writefile then
-            writefile(autoLoadFile, "false")
-        end
-    end)
-end
+MainTab:CreateToggle({
+    Name = "Автозавантаження конфігу при старті",
+    CurrentValue = shouldAutoLoad,
+    Flag = "AutoLoadToggle",
+    Callback = function(value)
+        shouldAutoLoad = value
+        pcall(function() if writefile then writefile(autoLoadFile, tostring(value)) end end)
+    end,
+})
 
 MainTab:CreateButton({
     Name = "Завантажити конфіг вручну",
@@ -835,16 +834,12 @@ MiscTab:CreateButton({
     end,
 })
 
-if shouldAutoLoad then
-    pcall(function()
-        local configPath = "UAKillerHub/YBA_Config.json"
-        if (isfile and isfile(configPath)) or not isfile then
-            Rayfield:LoadConfiguration()
-        elseif writefile then
-            writefile(autoLoadFile, "false")
-        end
-    end)
-end
+task.spawn(function()
+    if shouldAutoLoad then
+        task.wait(2.5) -- Чекаємо прогрузку інтерфейсу
+        Rayfield:LoadConfiguration()
+    end
+end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
