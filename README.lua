@@ -1,4 +1,5 @@
 -- UA Killer Hub | YBA — покращена версія
+repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -837,4 +838,3 @@ Rayfield:Notify({
     Content = "Завантажено. Virtual CFrame bypass активний.",
     Duration = 4,
 })
-repeat task.wait() until game:IsLoaded()
