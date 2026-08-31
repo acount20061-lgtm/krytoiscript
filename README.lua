@@ -555,6 +555,42 @@ local DontSell = {
 local sellQueue = {}
 local isSelling = false
 
+local function getMerchant()
+    local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
+    return dialogue and dialogue:FindFirstChild("Merchant")
+end
+
+local function autoClickDialogueButtons()
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+
+    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
+    if not dialogueGui then return end
+
+    for _, btn in ipairs(dialogueGui:GetDescendants()) do
+        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
+            local txt = btn.Text or ""
+            
+            -- 1. "I'd like to sell this..."
+            if txt:find("sell this") or txt:find("I'd like to sell") then
+                pcall(function()
+                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
+                end)
+            -- 2. "Deal."
+            elseif txt:find("Deal") or txt == "Deal." then
+                pcall(function()
+                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
+                end)
+            -- 3. "One. (1)"
+            elseif txt:find("One") or txt == "One. (1)" or txt:find("%(1%)") then
+                pcall(function()
+                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
+                end)
+            end
+        end
+    end
+end
+
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -567,15 +603,37 @@ local function processSellQueue()
         if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
             local char, _, hum = getCharacter()
             local remote = char and char:FindFirstChild("RemoteEvent")
-            if remote and hum then
-                hum:EquipTool(item)
-                task.wait(0.45)
-                remote:FireServer("EndDialogue", {
-                    Option = "Option1",
-                    Dialogue = "Dialogue5",
-                    NPC = "Merchant",
-                })
-                task.wait(0.35)
+            local merchant = getMerchant()
+
+            if remote and hum and merchant then
+                pcall(function()
+                    -- 1. Беремо предмет у руки
+                    hum:EquipTool(item)
+                    task.wait(0.2)
+
+                    -- 2. Відкриваємо діалог продавця
+                    remote:FireServer("PromptTriggered", merchant)
+                    task.wait(0.15)
+                    autoClickDialogueButtons()
+
+                    -- Крок 1: "I'd like to sell this..."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.15)
+
+                    -- Крок 2: "Deal."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.15)
+
+                    -- Крок 3: "One. (1)"
+                    remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.2)
+                end)
             end
         end
     end
