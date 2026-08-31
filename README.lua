@@ -555,18 +555,32 @@ local DontSell = {
 local sellQueue = {}
 local isSelling = false
 
-local VirtualUser = game:GetService("VirtualUser")
+local VIM = game:GetService("VirtualInputManager")
+local Workspace = game:GetService("Workspace")
 
 local function getMerchant()
     local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
     return dialogue and dialogue:FindFirstChild("Merchant")
 end
 
--- Імітація натискання мишки по екрану для пропуску тексту
-local function clickScreen()
+-- Миттєвий пропуск анімації друку тексту
+local function skipText()
+    -- 1. Клік точно по центру екрана
     pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton1(Vector2.new(0, 0))
+        local camera = Workspace.CurrentCamera
+        if camera then
+            local center = camera.ViewportSize / 2
+            VIM:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
+            task.wait(0.01)
+            VIM:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
+        end
+    end)
+    
+    -- 2. Натискання Пробілу (в YBA часто додруковує текст миттєво)
+    pcall(function()
+        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+        task.wait(0.01)
+        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
     end)
 end
 
@@ -577,9 +591,13 @@ local function autoClickDialogueButtons()
     local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
     if not dialogueGui then return end
 
-    -- Клікаємо по екрану перед пошуком кнопок, щоб текст миттєво додрукувався
-    clickScreen()
+    -- Протискаємо пропуск тексту кілька разів підряд
+    for i = 1, 3 do
+        skipText()
+        task.wait(0.02)
+    end
 
+    -- Натискаємо потрібну кнопку варіанту відповіді
     for _, btn in ipairs(dialogueGui:GetDescendants()) do
         if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
             local txt = btn.Text or ""
@@ -622,33 +640,29 @@ local function processSellQueue()
                 pcall(function()
                     -- 1. Беремо предмет у руки
                     hum:EquipTool(item)
-                    task.wait(0.1)
+                    task.wait(0.15)
 
                     -- 2. Відкриваємо діалог продавця
                     remote:FireServer("PromptTriggered", merchant)
-                    clickScreen()
-                    task.wait(0.08)
+                    task.wait(0.1)
                     autoClickDialogueButtons()
 
                     -- Крок 1: "I'd like to sell this..."
                     remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                    clickScreen()
-                    task.wait(0.08)
+                    task.wait(0.1)
                     autoClickDialogueButtons()
 
                     -- Крок 2: "Deal."
                     remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                     remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    clickScreen()
-                    task.wait(0.08)
+                    task.wait(0.1)
                     autoClickDialogueButtons()
 
                     -- Крок 3: "I'll sell ALL of these."
                     remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    clickScreen()
-                    task.wait(0.1)
+                    task.wait(0.15)
                     autoClickDialogueButtons()
                 end)
             end
@@ -657,6 +671,7 @@ local function processSellQueue()
 
     isSelling = false
 end
+
 local function queueItemForSale(item)
     if not _G.AutoSell then return end
     if not item or not item:IsA("Tool") or DontSell[item.Name] then return end
