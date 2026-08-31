@@ -555,9 +555,19 @@ local DontSell = {
 local sellQueue = {}
 local isSelling = false
 
+local VirtualUser = game:GetService("VirtualUser")
+
 local function getMerchant()
-    local dialogue = game:GetService("ReplicatedStorage"):FindFirstChild("Dialogue")
+    local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
     return dialogue and dialogue:FindFirstChild("Merchant")
+end
+
+-- Імітація натискання мишки по екрану для пропуску тексту
+local function clickScreen()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton1(Vector2.new(0, 0))
+    end)
 end
 
 local function autoClickDialogueButtons()
@@ -566,6 +576,9 @@ local function autoClickDialogueButtons()
 
     local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
     if not dialogueGui then return end
+
+    -- Клікаємо по екрану перед пошуком кнопок, щоб текст миттєво додрукувався
+    clickScreen()
 
     for _, btn in ipairs(dialogueGui:GetDescendants()) do
         if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
@@ -592,61 +605,58 @@ local function autoClickDialogueButtons()
 end
 
 local function processSellQueue()
-    if isSelling or not _G.AutoSell then return end
+    if isSelling then return end
     isSelling = true
 
-    local backpack = player:FindFirstChild("Backpack")
-    if backpack then
-        local soldTypes = {}
+    while #sellQueue > 0 do
+        if not _G.AutoSell then break end
 
-        for _, item in ipairs(backpack:GetChildren()) do
-            if not _G.AutoSell then break end
-            
-            -- Продаємо по 1 предметові кожного унікального типу (ігноруємо DontSell)
-            if item:IsA("Tool") and not DontSell[item.Name] and not soldTypes[item.Name] then
-                soldTypes[item.Name] = true
+        local item = table.remove(sellQueue, 1)
+        local backpack = player:FindFirstChild("Backpack")
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
+            local char, _, hum = getCharacter()
+            local remote = char and char:FindFirstChild("RemoteEvent")
+            local merchant = getMerchant()
 
-                local char, _, hum = getCharacter()
-                local remote = char and char:FindFirstChild("RemoteEvent")
-                local merchant = getMerchant()
+            if remote and hum and merchant then
+                pcall(function()
+                    -- 1. Беремо предмет у руки
+                    hum:EquipTool(item)
+                    task.wait(0.1)
 
-                if remote and hum and merchant then
-                    pcall(function()
-                        -- 1. Беремо предмет у руки
-                        hum:EquipTool(item)
-                        task.wait(0.05)
+                    -- 2. Відкриваємо діалог продавця
+                    remote:FireServer("PromptTriggered", merchant)
+                    clickScreen()
+                    task.wait(0.08)
+                    autoClickDialogueButtons()
 
-                        -- 2. Відкриваємо діалог
-                        remote:FireServer("PromptTriggered", merchant)
-                        task.wait(0.04)
-                        autoClickDialogueButtons()
+                    -- Крок 1: "I'd like to sell this..."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                    clickScreen()
+                    task.wait(0.08)
+                    autoClickDialogueButtons()
 
-                        -- 3. Крок 1: "I'd like to sell this..."
-                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                        autoClickDialogueButtons()
-                        task.wait(0.04)
+                    -- Крок 2: "Deal."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    clickScreen()
+                    task.wait(0.08)
+                    autoClickDialogueButtons()
 
-                        -- 4. Крок 2: "Deal."
-                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        autoClickDialogueButtons()
-                        task.wait(0.04)
-
-                        -- 5. Крок 3: "ALL" (Option1) — миттєвий продаж усього стеку
-                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        autoClickDialogueButtons()
-                        task.wait(0.05)
-                    end)
-                end
+                    -- Крок 3: "I'll sell ALL of these."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    clickScreen()
+                    task.wait(0.1)
+                    autoClickDialogueButtons()
+                end)
             end
         end
     end
 
     isSelling = false
 end
-
 local function queueItemForSale(item)
     if not _G.AutoSell then return end
     if not item or not item:IsA("Tool") or DontSell[item.Name] then return end
