@@ -570,7 +570,7 @@ local function processSellQueue()
             if remote and hum then
                 hum:EquipTool(item)
                 task.wait(0.45)
-                remote:FireServer("EndDialogue", {
+                remote:FireServer("DialogueEnd", {
                     Option = "Option1",
                     Dialogue = "Dialogue5",
                     NPC = "Merchant",
