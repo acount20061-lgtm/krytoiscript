@@ -556,7 +556,7 @@ local sellQueue = {}
 local isSelling = false
 
 local function getMerchant()
-    local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
+    local dialogue = game:GetService("ReplicatedStorage"):FindFirstChild("Dialogue")
     return dialogue and dialogue:FindFirstChild("Merchant")
 end
 
@@ -592,48 +592,54 @@ local function autoClickDialogueButtons()
 end
 
 local function processSellQueue()
-    if isSelling then return end
+    if isSelling or not _G.AutoSell then return end
     isSelling = true
 
-    while #sellQueue > 0 do
-        if not _G.AutoSell then break end
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        local soldTypes = {}
 
-        local item = table.remove(sellQueue, 1)
-        local backpack = player:FindFirstChild("Backpack")
-        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
-            local char, _, hum = getCharacter()
-            local remote = char and char:FindFirstChild("RemoteEvent")
-            local merchant = getMerchant()
+        for _, item in ipairs(backpack:GetChildren()) do
+            if not _G.AutoSell then break end
+            
+            -- Продаємо по 1 предметові кожного унікального типу (ігноруємо DontSell)
+            if item:IsA("Tool") and not DontSell[item.Name] and not soldTypes[item.Name] then
+                soldTypes[item.Name] = true
 
-            if remote and hum and merchant then
-                pcall(function()
-                    -- 1. Беремо предмет у руки
-                    hum:EquipTool(item)
-                    task.wait(0.2)
+                local char, _, hum = getCharacter()
+                local remote = char and char:FindFirstChild("RemoteEvent")
+                local merchant = getMerchant()
 
-                    -- 2. Відкриваємо діалог продавця
-                    remote:FireServer("PromptTriggered", merchant)
-                    task.wait(0.15)
-                    autoClickDialogueButtons()
+                if remote and hum and merchant then
+                    pcall(function()
+                        -- 1. Беремо предмет у руки
+                        hum:EquipTool(item)
+                        task.wait(0.05)
 
-                    -- Крок 1: "I'd like to sell this..."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.15)
+                        -- 2. Відкриваємо діалог
+                        remote:FireServer("PromptTriggered", merchant)
+                        task.wait(0.04)
+                        autoClickDialogueButtons()
 
-                    -- Крок 2: "Deal."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.15)
+                        -- 3. Крок 1: "I'd like to sell this..."
+                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                        autoClickDialogueButtons()
+                        task.wait(0.04)
 
-                    -- Крок 3: "I'll sell ALL of these." (Option1 замість Option2)
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.2)
-                end)
+                        -- 4. Крок 2: "Deal."
+                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                        autoClickDialogueButtons()
+                        task.wait(0.04)
+
+                        -- 5. Крок 3: "ALL" (Option1) — миттєвий продаж усього стеку
+                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                        remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                        autoClickDialogueButtons()
+                        task.wait(0.05)
+                    end)
+                end
             end
         end
     end
