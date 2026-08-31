@@ -581,8 +581,8 @@ local function autoClickDialogueButtons()
                 pcall(function()
                     if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
                 end)
-            -- 3. "One. (1)"
-            elseif txt:find("One") or txt == "One. (1)" or txt:find("%(1%)") then
+            -- 3. "I'll sell ALL of these."
+            elseif txt:find("ALL") or txt:find("sell ALL") or txt:find("All") then
                 pcall(function()
                     if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
                 end)
@@ -627,10 +627,10 @@ local function processSellQueue()
                     autoClickDialogueButtons()
                     task.wait(0.15)
 
-                    -- Крок 3: "One. (1)"
-                    remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    -- Крок 3: "I'll sell ALL of these." (Option1 замість Option2)
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     autoClickDialogueButtons()
                     task.wait(0.2)
                 end)
