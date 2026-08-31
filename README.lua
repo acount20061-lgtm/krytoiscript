@@ -560,37 +560,6 @@ local function getMerchant()
     return dialogue and dialogue:FindFirstChild("Merchant")
 end
 
-local function autoClickDialogueButtons()
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return end
-
-    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
-    if not dialogueGui then return end
-
-    for _, btn in ipairs(dialogueGui:GetDescendants()) do
-        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-            local txt = btn.Text or ""
-            
-            -- 1. "I'd like to sell this..."
-            if txt:find("sell this") or txt:find("I'd like to sell") then
-                pcall(function()
-                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
-                end)
-            -- 2. "Deal."
-            elseif txt:find("Deal") or txt == "Deal." then
-                pcall(function()
-                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
-                end)
-            -- 3. "I'll sell ALL of these."
-            elseif txt:find("ALL") or txt:find("sell ALL") or txt:find("All") then
-                pcall(function()
-                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
-                end)
-            end
-        end
-    end
-end
-
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -603,36 +572,23 @@ local function processSellQueue()
         if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
             local char, _, hum = getCharacter()
             local remote = char and char:FindFirstChild("RemoteEvent")
-            local merchant = getMerchant()
 
-            if remote and hum and merchant then
+            if remote and hum then
                 pcall(function()
                     -- 1. Беремо предмет у руки
                     hum:EquipTool(item)
-                    task.wait(0.2)
+                    
+                    -- Даємо мікро-затримку, щоб сервер побачив предмет у руках
+                    task.wait(0.1)
 
-                    -- 2. Відкриваємо діалог продавця
-                    remote:FireServer("PromptTriggered", merchant)
-                    task.wait(0.15)
-                    autoClickDialogueButtons()
-
-                    -- Крок 1: "I'd like to sell this..."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.15)
-
-                    -- Крок 2: "Deal."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.15)
-
-                    -- Крок 3: "I'll sell ALL of these." (Option1 замість Option2)
+                    -- 2. Відправляємо ОДРАЗУ фінальні пакети на продаж "ALL"
+                    -- Ми пропускаємо всі привітання і натискання кнопок
                     remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.2)
+                    
+                    -- Затримка перед наступним предметом (можеш зменшити до 0.05, якщо сервер не кікає)
+                    task.wait(0.1)
                 end)
             end
         end
