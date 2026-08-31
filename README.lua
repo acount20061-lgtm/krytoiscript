@@ -556,7 +556,7 @@ local sellQueue = {}
 local isSelling = false
 
 local function getMerchant()
-    local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
+    local dialogue = game:GetService("ReplicatedStorage"):FindFirstChild("Dialogue")
     return dialogue and dialogue:FindFirstChild("Merchant")
 end
 
@@ -572,23 +572,33 @@ local function processSellQueue()
         if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
             local char, _, hum = getCharacter()
             local remote = char and char:FindFirstChild("RemoteEvent")
+            local merchant = getMerchant()
 
-            if remote and hum then
+            if remote and hum and merchant then
                 pcall(function()
                     -- 1. Беремо предмет у руки
                     hum:EquipTool(item)
-                    
-                    -- Даємо мікро-затримку, щоб сервер побачив предмет у руках
-                    task.wait(0.1)
+                    task.wait(0.2)
 
-                    -- 2. Відправляємо ОДРАЗУ фінальні пакети на продаж "ALL"
-                    -- Ми пропускаємо всі привітання і натискання кнопок
+                    -- 2. Відкриваємо діалог (обов'язковий крок для сервера)
+                    remote:FireServer("PromptTriggered", merchant)
+                    task.wait(0.15)
+
+                    -- 3. Крок 1: "I'd like to sell this..."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                    task.wait(0.15)
+
+                    -- 4. Крок 2: "Deal."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    task.wait(0.15)
+
+                    -- 5. Крок 3: "I'll sell ALL of these." (Option1 замість Option2)
                     remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                     
-                    -- Затримка перед наступним предметом (можеш зменшити до 0.05, якщо сервер не кікає)
-                    task.wait(0.1)
+                    task.wait(0.2)
                 end)
             end
         end
