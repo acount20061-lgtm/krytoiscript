@@ -555,33 +555,9 @@ local DontSell = {
 local sellQueue = {}
 local isSelling = false
 
-local VIM = game:GetService("VirtualInputManager")
-local Workspace = game:GetService("Workspace")
-
 local function getMerchant()
     local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
     return dialogue and dialogue:FindFirstChild("Merchant")
-end
-
--- Миттєвий пропуск анімації друку тексту
-local function skipText()
-    -- 1. Клік точно по центру екрана
-    pcall(function()
-        local camera = Workspace.CurrentCamera
-        if camera then
-            local center = camera.ViewportSize / 2
-            VIM:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
-            task.wait(0.01)
-            VIM:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
-        end
-    end)
-    
-    -- 2. Натискання Пробілу (в YBA часто додруковує текст миттєво)
-    pcall(function()
-        VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-        task.wait(0.01)
-        VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-    end)
 end
 
 local function autoClickDialogueButtons()
@@ -591,13 +567,6 @@ local function autoClickDialogueButtons()
     local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
     if not dialogueGui then return end
 
-    -- Протискаємо пропуск тексту кілька разів підряд
-    for i = 1, 3 do
-        skipText()
-        task.wait(0.02)
-    end
-
-    -- Натискаємо потрібну кнопку варіанту відповіді
     for _, btn in ipairs(dialogueGui:GetDescendants()) do
         if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
             local txt = btn.Text or ""
@@ -620,6 +589,56 @@ local function autoClickDialogueButtons()
             end
         end
     end
+end
+
+local function processSellQueue()
+    if isSelling then return end
+    isSelling = true
+
+    while #sellQueue > 0 do
+        if not _G.AutoSell then break end
+
+        local item = table.remove(sellQueue, 1)
+        local backpack = player:FindFirstChild("Backpack")
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
+            local char, _, hum = getCharacter()
+            local remote = char and char:FindFirstChild("RemoteEvent")
+            local merchant = getMerchant()
+
+            if remote and hum and merchant then
+                pcall(function()
+                    -- 1. Беремо предмет у руки
+                    hum:EquipTool(item)
+                    task.wait(0.2)
+
+                    -- 2. Відкриваємо діалог продавця
+                    remote:FireServer("PromptTriggered", merchant)
+                    task.wait(0.15)
+                    autoClickDialogueButtons()
+
+                    -- Крок 1: "I'd like to sell this..."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.15)
+
+                    -- Крок 2: "Deal."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.15)
+
+                    -- Крок 3: "I'll sell ALL of these." (Option1 замість Option2)
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.2)
+                end)
+            end
+        end
+    end
+
+    isSelling = false
 end
 
 local function processSellQueue()
