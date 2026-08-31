@@ -1,0 +1,53 @@
+local function getMerchantNPC()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj.Name == "Merchant" or obj.Name == "Merchant Willie") then
+            local hrp = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")
+            if hrp then return obj, hrp end
+        end
+    end
+    return nil, nil
+end
+
+local function processSellQueue()
+    if isSelling then return end
+    isSelling = true
+
+    while #sellQueue > 0 do
+        if not _G.AutoSell then break end
+
+        local item = table.remove(sellQueue, 1)
+        local backpack = player:FindFirstChild("Backpack")
+        
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
+            local char, hrp, hum = getCharacter()
+            local remote = char and char:FindFirstChild("RemoteEvent")
+            local merchantModel, merchantPart = getMerchantNPC()
+            
+            if remote and hum and hrp and merchantPart then
+                pcall(function()
+                    -- Беремо предмет у руки
+                    hum:EquipTool(item)
+                    task.wait(0.3)
+                    
+                    -- Симулюємо прямий виклик ProximityPrompt купця
+                    local prompt = merchantModel:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt then
+                        fireproximityprompt(prompt, 0)
+                        task.wait(0.25)
+                    end
+                    
+                    -- Відправляємо пакет завершення продажу біля NPC
+                    remote:FireServer("EndDialogue", {
+                        Option = "Option1",
+                        Dialogue = "Dialogue5",
+                        NPC = "Merchant"
+                    })
+                    
+                    task.wait(0.4)
+                end)
+            end
+        end
+    end
+
+    isSelling = false
+end
