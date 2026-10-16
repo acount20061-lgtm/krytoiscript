@@ -2,7 +2,7 @@ local lp = game.Players.LocalPlayer
 local vim = game:GetService("VirtualInputManager")
 
 -- НАЛАШТУВАННЯ КООРДИНАТ КНОПКИ PLAY
-local PLAY_X, PLAY_Y = 133, 393
+local PLAY_X, PLAY_Y = 133, 450
 
 local coreGui = game:GetService("CoreGui")
 if coreGui:FindFirstChild("YBA_Play_Only") then coreGui.YBA_Play_Only:Destroy() end
