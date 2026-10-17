@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — фінальна версія з автоздачею цукерок
+-- UA Killer Hub | YBA — фінальна робоча версія з автоздачею цукерок
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС ДІАЛОГІВ + ОРИГІНАЛЬНЕ КЕРУВАННЯ)
+-- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + ПЕРЕВІРЕНІ ЗАТРИМКИ)
 -- =======================================================
 local function acquireLock(timeout)
     timeout = timeout or 4
@@ -752,7 +752,7 @@ local function skipDialogueEnding()
     end
 end
 
--- Черга автопродажу
+-- Черга автопродажу (з надійними затримками)
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -775,22 +775,22 @@ local function processSellQueue()
                 if acquireLock(4) then
                     pcall(function()
                         hum:EquipTool(item)
-                        task.wait(0.15)
+                        task.wait(0.25)
 
                         remote:FireServer("PromptTriggered", merchant)
-                        task.wait(0.1)
+                        task.wait(0.2)
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                        task.wait(0.1)
+                        task.wait(0.25)
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        task.wait(0.1)
+                        task.wait(0.25)
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        task.wait(0.15)
+                        task.wait(0.3)
                     end)
                     releaseLock()
                 else
@@ -804,7 +804,7 @@ local function processSellQueue()
     isSelling = false
 end
 
--- Черга автоздачі цукерок (із логікою натискань з message_2.txt)
+-- Черга автоздачі цукерок (з надійними затримками)
 local function processEventCandyQueue()
     if isEventSelling then return end
     isEventSelling = true
@@ -828,16 +828,16 @@ local function processEventCandyQueue()
                 if acquireLock(4) then
                     pcall(function()
                         remote:FireServer("PromptTriggered", eventNPC)
-                        task.wait(0.3)
+                        task.wait(0.35)
 
                         clickOption2()
-                        task.wait(0.2)
+                        task.wait(0.25)
 
                         remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         
-                        task.wait(0.3)
+                        task.wait(0.35)
                         skipDialogueEnding()
                     end)
                     releaseLock()
@@ -1157,6 +1157,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Автоздача цукерок працює ідеально!",
+    Content = "Завантажено. Все працює без стопів!",
     Duration = 4,
 })
