@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — версія з фоновим кліком через VirtualInputManager
+-- UA Killer Hub | YBA — фінальна версія з точними координатами кліку (X: 508, Y: 434)
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (ФОНОВИЙ КЛІК VIRTUAL INPUT MANAGER)
+-- МАГАЗИН ТА ІВЕНТ (ТОЧНІ КООРДИНАТИ КЛІКУ X: 508, Y: 434)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -639,16 +639,15 @@ local function clickEventCandyOption()
     return false
 end
 
--- Фоновий системний клік без рухів курсора по екрану
+-- Точний клік у зафіксовані координати кнопкою миші
 local function clickContinueButton()
     pcall(function()
         if VirtualInputManager then
-            local viewportSize = workspace.CurrentCamera.ViewportSize
-            local centerX, centerY = viewportSize.X / 2, viewportSize.Y / 2
+            local clickX, clickY = 508.6, 434.5
             
-            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 0)
+            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
             task.wait(0.05)
-            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, false, game, 0)
+            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 0)
         end
     end)
 end
@@ -1014,6 +1013,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено успішно! Фоновий клік активовано.",
+    Content = "Завантажено успішно! Застосовано точні координати.",
     Duration = 4,
 })
