@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — виправлений пошук потрібної опції здачі цукерок
+-- UA Killer Hub | YBA — остаточна версія з виправленим кліком на Continue
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -540,7 +540,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (ТОЧНИЙ ВИБІР ОПЦІЇ ЗДАЧІ ЦУКЕРОК)
+-- МАГАЗИН ТА ІВЕНТ (ВИПРАВЛЕНИЙ КЛІК НА CONTINUE)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -611,7 +611,7 @@ local function countTotalCandies()
     return count
 end
 
--- Точний пошук потрібної опції здачі цукерок серед усіх кнопок діалогу Джека
+-- Точний пошук потрібної опції здачі цукерок
 local function clickEventCandyOption()
     local dialogueGui = getDialogueGui()
     if not dialogueGui then return false end
@@ -625,7 +625,6 @@ local function clickEventCandyOption()
             end
             
             local lowerTxt = txt:lower()
-            -- Шукаємо саме кнопку здачі цукерок, ігноруючи питання про івент
             if lowerTxt:find("turn in") or lowerTxt:find("candy") and not lowerTxt:find("what do i do") and not lowerTxt:find("could you please") then
                 pcall(function()
                     if firesignal then 
@@ -642,26 +641,44 @@ local function clickEventCandyOption()
     return false
 end
 
--- Пропуск фінального вікна із кількістю балів ("- CLICK TO CONTINUE -")
+-- Надійна симуляція кліку для закриття вікна "Click to Continue"
 local function clickContinueButton()
     local dialogueGui = getDialogueGui()
     if not dialogueGui then return end
 
+    -- Спочатку пробуємо знайти кнопку за текстом Continue / Click / OK / або будь-яку видиму кнопку
     for _, btn in ipairs(dialogueGui:GetDescendants()) do
         if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-            pcall(function()
-                if firesignal then 
-                    firesignal(btn.MouseButton1Click) 
-                    firesignal(btn.Activated)
-                else 
-                    btn.Activated:Fire() 
-                end
-            end)
+            local txt = btn.Text or ""
+            local childText = btn:FindFirstChildOfClass("TextLabel")
+            if childText and childText.Text ~= "" then txt = childText.Text end
+            local lowerTxt = txt:lower()
+
+            if lowerTxt:find("continue") or lowerTxt:find("click") or lowerTxt == "" or btn.Name:lower():find("dialogue") then
+                pcall(function()
+                    if firesignal then 
+                        firesignal(btn.MouseButton1Click)
+                        firesignal(btn.Activated)
+                    else 
+                        btn.Activated:Fire() 
+                    end
+                end)
+            end
         end
     end
+
+    -- Додатково тригеримо повне завершення через самі ремойти діалогу
+    pcall(function()
+        local char, _, _ = getCharacter()
+        local remote = char and char:FindFirstChild("RemoteEvent")
+        if remote then
+            remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
+            remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
+        end
+    end)
 end
 
--- Повна здача пачки цукерок через ремойти і віртуальний клік по правильній кнопці
+-- Повна здача пачки цукерок
 local function submitAllCandies()
     local char, _, hum = getCharacter()
     local remote = char and char:FindFirstChild("RemoteEvent")
@@ -674,14 +691,11 @@ local function submitAllCandies()
         remote:FireServer("PromptTriggered", eventNPC)
         task.wait(0.35)
 
-        -- 2. Шукаємо і тиснемо кнопку "I want to turn in my candy"
+        -- 2. Вибираємо опцію здачі цукерок
         clickEventCandyOption()
-        task.wait(0.25)
+        task.wait(0.3)
 
-        -- 3. Закриваємо діалог та натискаємо продовжити, якщо з'явився напис з балами
-        remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-        remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-        
+        -- 3. Закриваємо вікно з балами ("Click to Continue")
         clickContinueButton()
         task.wait(0.4)
     end)
@@ -1032,6 +1046,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено! Виправлено вибір кнопки цукерок.",
+    Content = "Завантажено успішно! Пропуск Click to Continue активовано.",
     Duration = 4,
 })
