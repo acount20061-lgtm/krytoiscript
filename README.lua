@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — фінальна робоча версія з автоздачею цукерок
+-- UA Killer Hub | YBA — фінальна робоча версія з надійними кліками
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + ПЕРЕВІРЕНІ ЗАТРИМКИ)
+-- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + АВТОКЛІКИ ДІАЛОГІВ)
 -- =======================================================
 local function acquireLock(timeout)
     timeout = timeout or 4
@@ -599,80 +599,63 @@ local function getEventNPC()
     return dialogue and dialogue:FindFirstChild("Halloween Event")
 end
 
-local function getDialogueGui()
+local function autoClickDialogueButtons()
     local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return nil end
-    return playerGui:FindFirstChild("DialogueGui") 
-        or playerGui:FindFirstChild("Dialogue") 
-        or playerGui:FindFirstChild("DialogueBox")
+    if not playerGui then return end
+
+    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
+    if not dialogueGui then return end
+
+    for _, btn in ipairs(dialogueGui:GetDescendants()) do
+        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
+            local txt = btn.Text or ""
+            if txt:find("sell this") or txt:find("I'd like to sell") or txt:find("Deal") or txt == "Deal." or txt:find("ALL") or txt:find("sell ALL") or txt:find("All") then
+                pcall(function()
+                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
+                end)
+            end
+        end
+    end
 end
 
--- Функція кліку по 2-й кнопці (з message_2.txt)
+-- Клік по 2-й кнопці для івенту (цукерки)
 local function clickOption2()
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then return false end
+    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue") or playerGui:FindFirstChild("DialogueBox")
+    if not dialogueGui then return false end
+
     local targetBtn = nil
     local startTime = tick()
 
-    while tick() - startTime < 2.0 do
-        local dialogueGui = getDialogueGui()
-        if dialogueGui then
-            local candidates = {}
-            local cam = workspace.CurrentCamera
-            local vpSize = cam and cam.ViewportSize or Vector2.new(1280, 720)
+    while tick() - startTime < 1.5 do
+        local candidates = {}
+        for _, btn in ipairs(dialogueGui:GetDescendants()) do
+            if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
+                local name = btn.Name:lower()
+                local text = (btn:IsA("TextButton") and btn.Text) or ""
+                local childText = btn:FindFirstChildOfClass("TextLabel")
+                if childText and childText.Text ~= "" then text = childText.Text end
 
-            for _, btn in ipairs(dialogueGui:GetDescendants()) do
-                if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-                    local name = btn.Name:lower()
-                    local text = (btn:IsA("TextButton") and btn.Text) or ""
-                    local childText = btn:FindFirstChildOfClass("TextLabel")
-                    if childText and childText.Text ~= "" then
-                        text = childText.Text
-                    end
-
-                    local isClose = (name:find("close") or name:find("exit") or name:find("cancel") or text:lower() == "x" or text == "✕")
-                    local isFullScreen = (btn.AbsoluteSize.X > vpSize.X * 0.7 and btn.AbsoluteSize.Y > vpSize.Y * 0.7)
-                    local isTiny = (btn.AbsoluteSize.X < 20 or btn.AbsoluteSize.Y < 15)
-
-                    if not isClose and not isFullScreen and not isTiny then
-                        table.insert(candidates, {
-                            button = btn,
-                            y = btn.AbsolutePosition.Y,
-                            x = btn.AbsolutePosition.X,
-                            name = btn.Name,
-                            text = text
-                        })
-                    end
+                if not name:find("close") and not name:find("exit") and text ~= "x" then
+                    table.insert(candidates, { button = btn, y = btn.AbsolutePosition.Y, x = btn.AbsolutePosition.X })
                 end
             end
+        end
 
-            if #candidates >= 2 then
-                table.sort(candidates, function(a, b)
-                    if math.abs(a.y - b.y) > 10 then
-                        return a.y < b.y
-                    end
-                    return a.x < b.x
-                end)
-
-                targetBtn = candidates[2].button
-                break
-            end
+        if #candidates >= 2 then
+            table.sort(candidates, function(a, b)
+                if math.abs(a.y - b.y) > 10 then return a.y < b.y end
+                return a.x < b.x
+            end)
+            targetBtn = candidates[2].button
+            break
         end
         task.wait(0.1)
     end
 
     if targetBtn then
         pcall(function()
-            local bx = targetBtn.AbsolutePosition.X + (targetBtn.AbsoluteSize.X / 2)
-            local by = targetBtn.AbsolutePosition.Y + (targetBtn.AbsoluteSize.Y / 2)
-
-            if VirtualInputManager then
-                VirtualInputManager:SendMouseButtonEvent(bx, by, 0, true, game, 0)
-                task.wait(0.03)
-                VirtualInputManager:SendMouseButtonEvent(bx, by, 0, false, game, 0)
-            elseif VirtualUser then
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(bx, by))
-            end
-
             if firesignal then
                 firesignal(targetBtn.MouseButton1Click)
                 firesignal(targetBtn.Activated)
@@ -685,74 +668,7 @@ local function clickOption2()
     return false
 end
 
--- Функція пропуска фінального діалогу (з message_2.txt)
-local function skipDialogueEnding()
-    local startTime = tick()
-
-    while tick() - startTime < 1.5 do
-        local dialogueGui = getDialogueGui()
-        if not dialogueGui or not dialogueGui.Enabled then
-            break
-        end
-
-        local cam = workspace.CurrentCamera
-        local vpSize = cam and cam.ViewportSize or Vector2.new(1280, 720)
-        local clickX = vpSize.X / 2
-        local clickY = vpSize.Y * 0.65
-
-        for _, el in ipairs(dialogueGui:GetDescendants()) do
-            if el:IsA("TextLabel") and (el.Text:find("продолжить") or el.Text:find("continue") or el.Text:find("points")) then
-                clickX = el.AbsolutePosition.X + (el.AbsoluteSize.X / 2)
-                clickY = el.AbsolutePosition.Y + (el.AbsoluteSize.Y / 2)
-                break
-            end
-        end
-
-        for _, btn in ipairs(dialogueGui:GetDescendants()) do
-            if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-                pcall(function()
-                    if firesignal then
-                        firesignal(btn.MouseButton1Click)
-                        firesignal(btn.Activated)
-                    else
-                        btn.Activated:Fire()
-                    end
-                end)
-            end
-        end
-
-        pcall(function()
-            if VirtualInputManager then
-                VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
-                task.wait(0.02)
-                VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 0)
-
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                task.wait(0.02)
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-            elseif VirtualUser then
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(clickX, clickY))
-            end
-        end)
-
-        local hasVisibleDialog = false
-        for _, el in ipairs(dialogueGui:GetDescendants()) do
-            if el:IsA("GuiObject") and el.Visible and el.Transparency < 1 then
-                hasVisibleDialog = true
-                break
-            end
-        end
-
-        if not hasVisibleDialog then
-            break
-        end
-
-        task.wait(0.12)
-    end
-end
-
--- Черга автопродажу (з надійними затримками)
+-- Черга автопродажу (з оригінальними кліками з твого початкового скрипта)
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -775,22 +691,26 @@ local function processSellQueue()
                 if acquireLock(4) then
                     pcall(function()
                         hum:EquipTool(item)
-                        task.wait(0.25)
+                        task.wait(0.15)
 
                         remote:FireServer("PromptTriggered", merchant)
-                        task.wait(0.2)
+                        task.wait(0.1)
+                        autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                        task.wait(0.25)
+                        task.wait(0.1)
+                        autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        task.wait(0.25)
+                        task.wait(0.1)
+                        autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        task.wait(0.3)
+                        task.wait(0.15)
+                        autoClickDialogueButtons()
                     end)
                     releaseLock()
                 else
@@ -804,7 +724,7 @@ local function processSellQueue()
     isSelling = false
 end
 
--- Черга автоздачі цукерок (з надійними затримками)
+-- Черга автоздачі цукерок
 local function processEventCandyQueue()
     if isEventSelling then return end
     isEventSelling = true
@@ -828,17 +748,16 @@ local function processEventCandyQueue()
                 if acquireLock(4) then
                     pcall(function()
                         remote:FireServer("PromptTriggered", eventNPC)
-                        task.wait(0.35)
+                        task.wait(0.2)
 
                         clickOption2()
-                        task.wait(0.25)
+                        task.wait(0.15)
 
                         remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         
-                        task.wait(0.35)
-                        skipDialogueEnding()
+                        task.wait(0.2)
                     end)
                     releaseLock()
                 else
@@ -1157,6 +1076,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Все працює без стопів!",
+    Content = "Завантажено. Кнопки діалогів активовані!",
     Duration = 4,
 })
