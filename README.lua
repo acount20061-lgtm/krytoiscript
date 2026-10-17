@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — повністю робоча стабільна версія
+-- UA Killer Hub | YBA — робоча версія з затримкою 2с на закриття вікна
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (ЗАХИСТ ПОТОКІВ І ЗАТРИМКА 2С)
+-- МАГАЗИН ТА ІВЕНТ (РОБОЧА ВЕРСІЯ З ЗАТРИМКОЮ 2С НА CONTINUE)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -561,8 +561,7 @@ local EventCandies = {
 }
 
 local sellQueue = {}
-local isSelling = false
-local isSubmittingCandies = false
+local isBusy = false
 
 local function getMerchant()
     local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
@@ -603,9 +602,7 @@ local function countTotalCandies()
     if not backpack then return 0 end
     
     local count = 0
-    local children = backpack:GetChildren()
-    for i = 1, #children do
-        local item = children[i]
+    for _, item in ipairs(backpack:GetChildren()) do
         if item:IsA("Tool") and EventCandies[item.Name] then
             count = count + 1
         end
@@ -642,6 +639,7 @@ local function clickEventCandyOption()
     return false
 end
 
+-- Клік за твоїми точними координатами з затримкою
 local function clickContinueButton()
     pcall(function()
         if VirtualInputManager then
@@ -662,39 +660,36 @@ local function submitAllCandies()
 
     pcall(function()
         remote:FireServer("PromptTriggered", eventNPC)
-        task.wait(0.4)
+        task.wait(0.3)
 
         clickEventCandyOption()
         
-        -- Затримка 2 секунди перед закриттям вікна балів
+        -- Чекаємо 2 секунди, поки вікно "CLICK TO CONTINUE" прогрузиться
         task.wait(2.0)
 
         clickContinueButton()
-        task.wait(0.8)
+        task.wait(0.4)
     end)
 end
 
--- Потік здачі цукерок
+-- Головний потік автопродажу та цукерок (працює ідеально без зависань)
 task.spawn(function()
     while true do
-        task.wait(0.5)
-        if _G.AutoEventCandy and not isSelling and countTotalCandies() >= 10 then
-            isSubmittingCandies = true
+        task.wait(0.3)
+        if isBusy then continue end
+
+        if _G.AutoEventCandy and countTotalCandies() >= 10 then
+            isBusy = true
             while countTotalCandies() > 0 and _G.AutoEventCandy do
                 submitAllCandies()
-                task.wait(0.8)
+                task.wait(0.5)
             end
-            isSubmittingCandies = false
+            isBusy = false
+            continue
         end
-    end
-end)
 
--- Потік автопродажу
-task.spawn(function()
-    while true do
-        task.wait(0.4)
-        if _G.AutoSell and not isSubmittingCandies and #sellQueue > 0 then
-            isSelling = true
+        if _G.AutoSell and #sellQueue > 0 then
+            isBusy = true
             local item = table.remove(sellQueue, 1)
             local backpack = player:FindFirstChild("Backpack")
 
@@ -706,32 +701,32 @@ task.spawn(function()
                 if remote and hum and merchant then
                     pcall(function()
                         hum:EquipTool(item)
-                        task.wait(0.25)
+                        task.wait(0.15)
 
                         remote:FireServer("PromptTriggered", merchant)
-                        task.wait(0.2)
+                        task.wait(0.12)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                        task.wait(0.2)
+                        task.wait(0.12)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        task.wait(0.2)
+                        task.wait(0.12)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        task.wait(0.5)
+                        task.wait(0.2)
                         autoClickDialogueButtons()
                     end)
                 else
                     table.insert(sellQueue, 1, item)
                 end
             end
-            isSelling = false
+            isBusy = false
         end
     end
 end)
