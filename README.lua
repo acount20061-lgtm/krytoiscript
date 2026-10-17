@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — остаточна версія з виправленим кліком на Continue
+-- UA Killer Hub | YBA — фінальна версія (обхід перекриття меню через ремойти)
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -540,7 +540,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (ВИПРАВЛЕНИЙ КЛІК НА CONTINUE)
+-- МАГАЗИН ТА ІВЕНТ (ПОВНИЙ ОБХІД МЕНЮ ЧЕРЕЗ РЕМОЙТИ)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -580,7 +580,6 @@ local function getDialogueGui()
         or playerGui:FindFirstChild("DialogueBox")
 end
 
--- Клік по кнопках мерчанта
 local function autoClickDialogueButtons()
     local dialogueGui = getDialogueGui()
     if not dialogueGui then return end
@@ -597,7 +596,6 @@ local function autoClickDialogueButtons()
     end
 end
 
--- Підрахунок цукерок у рюкзаку
 local function countTotalCandies()
     local backpack = player:FindFirstChild("Backpack")
     if not backpack then return 0 end
@@ -611,7 +609,6 @@ local function countTotalCandies()
     return count
 end
 
--- Точний пошук потрібної опції здачі цукерок
 local function clickEventCandyOption()
     local dialogueGui = getDialogueGui()
     if not dialogueGui then return false end
@@ -641,44 +638,19 @@ local function clickEventCandyOption()
     return false
 end
 
--- Надійна симуляція кліку для закриття вікна "Click to Continue"
+-- Найшвидше та найчистіше закриття вікна через RemoteEvent (працює навіть при відкритому меню скрипта)
 local function clickContinueButton()
-    local dialogueGui = getDialogueGui()
-    if not dialogueGui then return end
-
-    -- Спочатку пробуємо знайти кнопку за текстом Continue / Click / OK / або будь-яку видиму кнопку
-    for _, btn in ipairs(dialogueGui:GetDescendants()) do
-        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-            local txt = btn.Text or ""
-            local childText = btn:FindFirstChildOfClass("TextLabel")
-            if childText and childText.Text ~= "" then txt = childText.Text end
-            local lowerTxt = txt:lower()
-
-            if lowerTxt:find("continue") or lowerTxt:find("click") or lowerTxt == "" or btn.Name:lower():find("dialogue") then
-                pcall(function()
-                    if firesignal then 
-                        firesignal(btn.MouseButton1Click)
-                        firesignal(btn.Activated)
-                    else 
-                        btn.Activated:Fire() 
-                    end
-                end)
-            end
-        end
-    end
-
-    -- Додатково тригеримо повне завершення через самі ремойти діалогу
     pcall(function()
         local char, _, _ = getCharacter()
         local remote = char and char:FindFirstChild("RemoteEvent")
         if remote then
+            remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
             remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
             remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
         end
     end)
 end
 
--- Повна здача пачки цукерок
 local function submitAllCandies()
     local char, _, hum = getCharacter()
     local remote = char and char:FindFirstChild("RemoteEvent")
@@ -687,27 +659,22 @@ local function submitAllCandies()
     if not remote or not hum or not eventNPC then return end
 
     pcall(function()
-        -- 1. Відкриваємо діалог з Джеком
         remote:FireServer("PromptTriggered", eventNPC)
-        task.wait(0.35)
-
-        -- 2. Вибираємо опцію здачі цукерок
-        clickEventCandyOption()
         task.wait(0.3)
 
-        -- 3. Закриваємо вікно з балами ("Click to Continue")
+        clickEventCandyOption()
+        task.wait(0.25)
+
         clickContinueButton()
-        task.wait(0.4)
+        task.wait(0.35)
     end)
 end
 
--- Головний потік автопродажу та перевірки накопичення 10 цукерок
 task.spawn(function()
     while true do
         task.wait(0.3)
         if isBusy then continue end
 
-        -- Якщо назбиралося 10+ цукерок, здаємо їх пачкою у пріоритеті
         if _G.AutoEventCandy and countTotalCandies() >= 10 then
             isBusy = true
             while countTotalCandies() > 0 and _G.AutoEventCandy do
@@ -718,7 +685,6 @@ task.spawn(function()
             continue
         end
 
-        -- Звичайний автопродаж
         if _G.AutoSell and #sellQueue > 0 then
             isBusy = true
             local item = table.remove(sellQueue, 1)
@@ -1046,6 +1012,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено успішно! Пропуск Click to Continue активовано.",
+    Content = "Завантажено успішно! Оновлено закриття діалогу через ремойти.",
     Duration = 4,
 })
