@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — покращена версія
+-- UA Killer Hub | YBA — покращена фінальна версія
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -10,6 +10,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 local autoLoadFile = "UAKillerHub/YBA_AutoLoad.txt"
 local shouldAutoLoad = false
+
 -- =======================================================
 -- АКТИВАЦІЯ ITEM MAGNITUDE BYPASS
 -- =======================================================
@@ -21,32 +22,29 @@ OldIndexItem = hookmetamethod(player.Character.PrimaryPart.Position, "__index", 
                                                 
     return OldIndexItem(self, Key)
 end))
+
 -- ====================================================
 -- CRASH & WALKSPEED BYPASS
 -- ====================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FunctionLibrary = require(ReplicatedStorage.Modules.FunctionLibrary)
-local OldPcall = FunctionLibrary.pcall -- Зберігаємо оригінальну функцію
+local OldPcall = FunctionLibrary.pcall
 
 FunctionLibrary.pcall = function(...)
     local args = {...}
     
-    -- Перевірка на анти-чит YBA (11 апвалуес)
     if type(args[1]) == 'function' and #getupvalues(args[1]) == 11 then
-        return -- Ігноруємо виклик, щоб не отримати краш
+        return
     end
  
-    return OldPcall(...) -- Виконуємо оригінальну функцію
+    return OldPcall(...)
 end
 -- =======================================================
 
--- Налаштування автозавантаження
 pcall(function()
-    -- Створюємо папку, якщо її немає
     if makefolder and not isfolder("UAKillerHub") then
         makefolder("UAKillerHub")
     end
-    -- Читаємо статус
     if isfile and isfile(autoLoadFile) then
         shouldAutoLoad = (readfile(autoLoadFile) == "true")
     elseif writefile then
@@ -114,7 +112,7 @@ local noclipConnection
 local antiAfkConnection
 
 -- ====================
--- ДОПОМІЖНІ ФУНКЦІЇ
+-- ДОПОМІЖНІ ФУНКЦІЇ ФАРМУ
 -- ====================
 local function setFarmStatus(text)
     farmStatusText = text
@@ -454,7 +452,7 @@ local function tryRespawn()
     local _, _, hum = getCharacter()
     if hum and hum.Health <= 0 then
         pcall(function()
-            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+            local remote = ReplicatedStorage:FindFirstChild("Remotes")
             remote = remote and remote:FindFirstChild("LoadCharacter")
             if remote then remote:FireServer() end
         end)
@@ -462,7 +460,7 @@ local function tryRespawn()
 end
 
 -- ====================
--- UI
+-- UI ІНІЦІАЛІЗАЦІЯ
 -- ====================
 local Window = Rayfield:CreateWindow({
     Name = "UA Killer Hub | YBA",
@@ -542,9 +540,9 @@ MainTab:CreateSlider({
     Callback = function(value) JP_Value = value end,
 })
 
--- ====================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС ТА МИТТЄВА ЗДАЧА)
--- ====================
+-- =======================================================
+-- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + ЗАХИСТ ВІД ПЕРЕТИНУ ЧЕРГ)
+-- =======================================================
 local function acquireLock(timeout)
     timeout = timeout or 4
     local start = tick()
@@ -571,12 +569,12 @@ end
 
 local DontSell = {
     ["Lucky Arrow"] = true,
-    ["Lucky Stone Mask"] = true,
-    ["Blue Candy"] = true,
-    ["Green Candy"] = true,
-    ["Red Candy"] = true,
-    ["Yellow Candy"] = true,
     ["Christmas Present"] = true,
+    ["Green Candy"] = true,
+    ["Yellow Candy"] = true,
+    ["Blue Candy"] = true,
+    ["Red Candy"] = true,
+    ["Lucky Stone Mask"] = true
 }
 
 local EventCandies = {
@@ -607,25 +605,6 @@ local function getDialogueGui()
     return playerGui:FindFirstChild("DialogueGui") 
         or playerGui:FindFirstChild("Dialogue") 
         or playerGui:FindFirstChild("DialogueBox")
-end
-
-local function autoClickDialogueButtons()
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return end 
-    
-    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
-    if not dialogueGui then return end 
-    
-    for _, btn in ipairs(dialogueGui:GetDescendants()) do 
-        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then 
-            local txt = btn.Text or "" 
-            if txt:find("sell") or txt:find("продать") or txt:find("Deal") or txt:find("Сделка") or txt:find("ALL") or txt:find("Всё") or txt:find("Все") then 
-                pcall(function() 
-                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end 
-                end) 
-            end 
-        end 
-    end 
 end
 
 local function clickOption2()
@@ -771,68 +750,69 @@ local function skipDialogueEnding()
     end
 end
 
+-- Черга автопродажу (з перевіркою чи не йде здача цукерок)
 local function processSellQueue()
-    if isSelling then return end 
-    isSelling = true 
-    
-    while #sellQueue > 0 do 
-        if not _G.AutoSell then break end 
-        
-        local item = table.remove(sellQueue, 1) 
-        local backpack = player:FindFirstChild("Backpack") 
-        
-        if item and item.Parent and (item.Parent == backpack or item.Parent == player.Character) and item:IsA("Tool") then
-            local isRedeemed = item.Name:find("Redeemed") or item:FindFirstChild("Redeemed")
-            
-            if not DontSell[item.Name] and not isRedeemed then
-                local char, _, hum = getCharacter() 
-                local remote = char and char:FindFirstChild("RemoteEvent") 
-                local merchant = getMerchant() 
-                
-                if remote and hum and merchant then 
-                    if acquireLock(4) then
-                        pcall(function() 
-                            hum:EquipTool(item) 
-                            task.wait(0.3)
-                            
-                            if item.Parent == char then
-                                remote:FireServer("PromptTriggered", merchant) 
-                                task.wait(0.2)
-                                autoClickDialogueButtons()
-                                
-                                remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" }) 
-                                autoClickDialogueButtons() 
-                                task.wait(0.2) 
-                                
-                                remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" }) 
-                                remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" }) 
-                                autoClickDialogueButtons() 
-                                task.wait(0.2) 
-                                
-                                remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" }) 
-                                autoClickDialogueButtons()
-                                task.wait(0.3)
-                            end
-                        end)
-                        releaseLock()
-                    else
-                        table.insert(sellQueue, 1, item)
-                        task.wait(0.3)
-                    end
-                end 
+    if isSelling then return end
+    isSelling = true
+
+    while #sellQueue > 0 do
+        if not _G.AutoSell then break end
+
+        while isEventSelling do
+            task.wait(0.2)
+        end
+
+        local item = table.remove(sellQueue, 1)
+        local backpack = player:FindFirstChild("Backpack")
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
+            local char, _, hum = getCharacter()
+            local remote = char and char:FindFirstChild("RemoteEvent")
+            local merchant = getMerchant()
+
+            if remote and hum and merchant then
+                if acquireLock(4) then
+                    pcall(function()
+                        hum:EquipTool(item)
+                        task.wait(0.15)
+
+                        remote:FireServer("PromptTriggered", merchant)
+                        task.wait(0.1)
+
+                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                        task.wait(0.1)
+
+                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                        task.wait(0.1)
+
+                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                        remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                        task.wait(0.15)
+                    end)
+                    releaseLock()
+                else
+                    table.insert(sellQueue, 1, item)
+                    task.wait(0.3)
+                end
             end
-        end 
-    end 
-    
-    isSelling = false 
+        end
+    end
+
+    isSelling = false
 end
 
+-- Черга автоздачі цукерок (з перевіркою чи не йде звичайний продаж)
 local function processEventCandyQueue()
     if isEventSelling then return end
     isEventSelling = true
 
     while #eventCandyQueue > 0 do
         if not _G.AutoEventCandy then break end
+
+        while isSelling do
+            task.wait(0.2)
+        end
 
         local item = table.remove(eventCandyQueue, 1)
         local backpack = player:FindFirstChild("Backpack")
@@ -1175,6 +1155,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Усе готово!",
+    Content = "Завантажено. Фінальна версія успішно запущена!",
     Duration = 4,
 })
