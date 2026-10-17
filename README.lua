@@ -1,10 +1,11 @@
--- UA Killer Hub | YBA — фінальна версія (обхід перекриття меню через ремойти)
+-- UA Killer Hub | YBA — версія з фоновим кліком через VirtualInputManager
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local autoLoadFile = "UAKillerHub/YBA_AutoLoad.txt"
@@ -540,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (ПОВНИЙ ОБХІД МЕНЮ ЧЕРЕЗ РЕМОЙТИ)
+-- МАГАЗИН ТА ІВЕНТ (ФОНОВИЙ КЛІК VIRTUAL INPUT MANAGER)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -638,15 +639,16 @@ local function clickEventCandyOption()
     return false
 end
 
--- Найшвидше та найчистіше закриття вікна через RemoteEvent (працює навіть при відкритому меню скрипта)
+-- Фоновий системний клік без рухів курсора по екрану
 local function clickContinueButton()
     pcall(function()
-        local char, _, _ = getCharacter()
-        local remote = char and char:FindFirstChild("RemoteEvent")
-        if remote then
-            remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-            remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-            remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
+        if VirtualInputManager then
+            local viewportSize = workspace.CurrentCamera.ViewportSize
+            local centerX, centerY = viewportSize.X / 2, viewportSize.Y / 2
+            
+            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 0)
+            task.wait(0.05)
+            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, false, game, 0)
         end
     end)
 end
@@ -663,7 +665,7 @@ local function submitAllCandies()
         task.wait(0.3)
 
         clickEventCandyOption()
-        task.wait(0.25)
+        task.wait(0.3)
 
         clickContinueButton()
         task.wait(0.35)
@@ -1012,6 +1014,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено успішно! Оновлено закриття діалогу через ремойти.",
+    Content = "Завантажено успішно! Фоновий клік активовано.",
     Duration = 4,
 })
