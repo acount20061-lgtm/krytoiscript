@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — фінальна версія з точними координатами кліку (X: 508, Y: 434)
+-- UA Killer Hub | YBA — фінальна версія із затримкою 2с на Continue та захистом потоків продажу
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -474,7 +474,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 local MainTab = Window:CreateTab("Головна", 4483362458)
-local FarmTab = Window:CreateTab("Автофарм", 4483362534)
+val FarmTab = Window:CreateTab("Автофарм", 4483362534)
 local ShopTab = Window:CreateTab("Магазин", 4483362458)
 local MiscTab = Window:CreateTab("Інше", 4483362458)
 
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (ТОЧНІ КООРДИНАТИ КЛІКУ X: 508, Y: 434)
+-- МАГАЗИН ТА ІВЕНТ (СУВОРИЙ ЗАХИСТ ВІД КОНФЛІКТІВ І ЗАТРИМКА 2С)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -561,7 +561,8 @@ local EventCandies = {
 }
 
 local sellQueue = {}
-local isBusy = false
+local isSelling = false
+local isSubmittingCandies = false
 
 local function getMerchant()
     local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
@@ -602,7 +603,9 @@ local function countTotalCandies()
     if not backpack then return 0 end
     
     local count = 0
-    for _, item in ipairs(backpack:GetChildren()) do
+    local children = backpack:GetChildren()
+    for i = 1, #children do
+        local item = children[i]
         if item:IsA("Tool") and EventCandies[item.Name] then
             count = count + 1
         end
@@ -639,14 +642,13 @@ local function clickEventCandyOption()
     return false
 end
 
--- Точний клік у зафіксовані координати кнопкою миші
+-- Клік за зафіксованими координатами (X: 508.6, Y: 434.5)
 local function clickContinueButton()
     pcall(function()
         if VirtualInputManager then
             local clickX, clickY = 508.6, 434.5
-            
             VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
-            task.wait(0.05)
+            task.wait(0.08)
             VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 0)
         end
     end)
@@ -661,33 +663,41 @@ local function submitAllCandies()
 
     pcall(function()
         remote:FireServer("PromptTriggered", eventNPC)
-        task.wait(0.3)
+        task.wait(0.4)
 
         clickEventCandyOption()
-        task.wait(0.3)
+        
+        -- Робимо затримку 2 секунди, щоб вікно "CLICK TO CONTINUE" встигло з'явитися
+        task.wait(2.0)
 
         clickContinueButton()
-        task.wait(0.35)
+        task.wait(0.8)
     end)
 end
 
+-- Потік здачі цукерок (чекає завершення поточного продажу предмета)
 task.spawn(function()
     while true do
-        task.wait(0.3)
-        if isBusy then continue end
-
-        if _G.AutoEventCandy and countTotalCandies() >= 10 then
-            isBusy = true
+        task.wait(0.5)
+        -- Якщо йде продаж предмета, івент чекає, щоб не перебити діалог посередині
+        if _G.AutoEventCandy and not isSelling and countTotalCandies() >= 10 then
+            isSubmittingCandies = true
             while countTotalCandies() > 0 and _G.AutoEventCandy do
                 submitAllCandies()
-                task.wait(0.5)
+                task.wait(0.8)
             end
-            isBusy = false
-            continue
+            isSubmittingCandies = false
         end
+    end
+end)
 
-        if _G.AutoSell and #sellQueue > 0 then
-            isBusy = true
+-- Потік автопродажу предметів
+task.spawn(function()
+    while true do
+        task.wait(0.4)
+        -- Якщо зараз здаються цукерки, продаж чекає
+        if _G.AutoSell and not isSubmittingCandies and #sellQueue > 0 then
+            isSelling = true
             local item = table.remove(sellQueue, 1)
             local backpack = player:FindFirstChild("Backpack")
 
@@ -699,32 +709,32 @@ task.spawn(function()
                 if remote and hum and merchant then
                     pcall(function()
                         hum:EquipTool(item)
-                        task.wait(0.15)
+                        task.wait(0.25)
 
                         remote:FireServer("PromptTriggered", merchant)
-                        task.wait(0.12)
+                        task.wait(0.2)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                        task.wait(0.12)
+                        task.wait(0.2)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        task.wait(0.12)
+                        task.wait(0.2)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        task.wait(0.2)
+                        task.wait(0.5)
                         autoClickDialogueButtons()
                     end)
                 else
                     table.insert(sellQueue, 1, item)
                 end
             end
-            isBusy = false
+            isSelling = false
         end
     end
 end)
@@ -1013,6 +1023,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено успішно! Застосовано точні координати.",
+    Content = "Завантажено! Додано затримку 2с і захист потоків продажу.",
     Duration = 4,
 })
