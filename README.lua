@@ -2,50 +2,56 @@
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
-local autoLoadFile = "UAKillerHub/YBA_AutoLoad.txt"
-local shouldAutoLoad = false
--- =======================================================
--- АКТИВАЦІЯ ITEM MAGNITUDE BYPASS
--- =======================================================
-local OldIndexItem;
-OldIndexItem = hookmetamethod(player.Character.PrimaryPart.Position, "__index", newcclosure(function(self, Key)
-    if not checkcaller() and Key:lower() == 'magnitude' and getcallingscript().Name == "ItemSpawn" then
-        return 0
-    end
-                                                
-    return OldIndexItem(self, Key)
-end))
--- ====================================================
--- CRASH & WALKSPEED BYPASS
--- ====================================================
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local FunctionLibrary = require(ReplicatedStorage.Modules.FunctionLibrary)
-local OldPcall = FunctionLibrary.pcall -- Зберігаємо оригінальну функцію
 
-FunctionLibrary.pcall = function(...)
-    local args = {...}
-    
-    -- Перевірка на анти-чит YBA (11 апвалуес)
-    if type(args[1]) == 'function' and #getupvalues(args[1]) == 11 then
-        return -- Ігноруємо виклик, щоб не отримати краш
+local function findPressedPlayRemote()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if remotes then
+        local remote = remotes:FindFirstChild("RemoteEvent") or remotes:FindFirstChildOfClass("RemoteEvent")
+        if remote then return remote end
     end
- 
-    return OldPcall(...) -- Виконуємо оригінальну функцію
+    return ReplicatedStorage:FindFirstChild("RemoteEvent", true)
 end
--- =======================================================
 
--- Налаштування автозавантаження
+local function skipStartMenu()
+    pcall(function()
+        VirtualInputManager:SendMouseButtonEvent(132, 265, 0, true, game, 0)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(132, 265, 0, false, game, 0)
+    end)
+
+    pcall(function()
+        local remote = findPressedPlayRemote()
+        if remote then
+            remote:FireServer("PressedPlay")
+        end
+    end)
+end
+
+skipStartMenu()
+
+if not player.Character then
+    player.CharacterAdded:Wait()
+end
+
+repeat task.wait() until player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local autoLoadFile = "YBA_AutoLoad.txt"
+local shouldAutoLoad = false
+
 pcall(function()
-    -- Створюємо папку, якщо її немає
     if makefolder and not isfolder("UAKillerHub") then
         makefolder("UAKillerHub")
     end
-    -- Читаємо статус
+end)
+
+pcall(function()
     if isfile and isfile(autoLoadFile) then
         shouldAutoLoad = (readfile(autoLoadFile) == "true")
     elseif writefile then
@@ -69,7 +75,6 @@ _G.FlySpeed = 150
 _G.PickupDistance = 3.5
 _G.AntiAFK = false
 _G.StandaloneNoClip = false
-_G.AutoRespawn = true
 
 _G.SelectedItems = {
     ["Ancient Scroll"] = false,
@@ -97,12 +102,29 @@ _G.SelectedItems = {
     ["Zeppeli's Hat"] = false,
 }
 
-local bannedCoordinates = {}
+_G.ItemsToSell = {
+    ["Ancient Scroll"] = true,
+    ["Caesar's Headband"] = true,
+    ["Clackers"] = true,
+    ["Diamond"] = true,
+    ["Dio's Diary"] = true,
+    ["Gold Coin"] = true,
+    ["Gold Umbrella"] = true,
+    ["Mysterious Arrow"] = true,
+    ["Pure Rokakaka"] = true,
+    ["Quinton's Glove"] = true,
+    ["Rib Cage of The Saint's Corpse"] = true,
+    ["Rokakaka"] = true,
+    ["Steel Ball"] = true,
+    ["Stone Mask"] = true,
+    ["Zepellin's Headband"] = true,
+    ["Zeppeli's Hat"] = true,
+}
+
 local espObjects = {}
 local itemCache = {}
 local lastCacheRefresh = 0
 local CACHE_REFRESH_INTERVAL = 1.25
-local BAN_TTL = 45
 
 local farmThreadActive = false
 local farmStatusText = "Очікування..."
@@ -112,10 +134,55 @@ local noclipConnection
 local antiAfkConnection
 
 -- ====================
+-- ГЛОБАЛЬНИЙ BYPASS PROMPTS
+-- ====================
+task.spawn(function()
+    while true do
+        pcall(function()
+            for _, desc in ipairs(workspace:GetDescendants()) do
+                if desc:IsA("ProximityPrompt") then
+                    pcall(function()
+                        desc.RequiresLineOfSight = false
+                        desc.MaxActivationDistance = math.huge
+                        desc.Enabled = true
+                    end)
+                end
+            end
+        end)
+        task.wait(1.5)
+    end
+end)
+
+-- ====================
 -- ДОПОМІЖНІ ФУНКЦІЇ
 -- ====================
 local function setFarmStatus(text)
     farmStatusText = text
+end
+
+local function safeGetPartPosition(part)
+    local ok, pos = pcall(function()
+        return part.Position
+    end)
+    if ok then return pos end
+    return nil
+end
+
+local function safeUnlockPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return end
+    pcall(function()
+        prompt.RequiresLineOfSight = false
+        prompt.HoldDuration = 0
+        prompt.MaxActivationDistance = math.huge
+        prompt.Enabled = true
+    end)
+end
+
+local function isCoordinateBanned(pos)
+    return math.abs(pos.X) < 1.5
+        and math.abs(pos.Z) < 1.5
+        and pos.Y >= -0.3
+        and pos.Y <= 1.5
 end
 
 local function isInvalidItemPart(obj)
@@ -133,35 +200,18 @@ local function isInvalidItemPart(obj)
     return false
 end
 
-local function cleanupBannedCoordinates()
-    local now = tick()
-    for i = #bannedCoordinates, 1, -1 do
-        if now - bannedCoordinates[i].time > BAN_TTL then
-            table.remove(bannedCoordinates, i)
-        end
-    end
-end
-
-local function isCoordinateBanned(pos)
-    cleanupBannedCoordinates()
-    for _, entry in ipairs(bannedCoordinates) do
-        if (pos - entry.pos).Magnitude < 3 then
-            return true
-        end
-    end
-    return false
-end
-
-local function banCoordinate(pos)
-    table.insert(bannedCoordinates, { pos = pos, time = tick() })
-end
-
 local function resolveItemFromPrompt(desc)
-    if not desc or not desc:IsA("ProximityPrompt") or not desc.Parent then
+    if not desc or not desc:IsA("ProximityPrompt") then
         return nil
     end
 
-    local parent = desc.Parent
+    local parentOk, parent = pcall(function()
+        return desc.Parent
+    end)
+    if not parentOk or not parent then
+        return nil
+    end
+
     local model = parent:IsA("Model") and parent or parent.Parent
     local itemName = ""
 
@@ -169,8 +219,13 @@ local function resolveItemFromPrompt(desc)
         itemName = parent.Name
     elseif model and _G.SelectedItems[model.Name] ~= nil then
         itemName = model.Name
-    elseif desc.ObjectText and _G.SelectedItems[desc.ObjectText] ~= nil then
-        itemName = desc.ObjectText
+    else
+        local objectTextOk, objectText = pcall(function()
+            return desc.ObjectText
+        end)
+        if objectTextOk and objectText and _G.SelectedItems[objectText] ~= nil then
+            itemName = objectText
+        end
     end
 
     if itemName == "" then
@@ -181,13 +236,12 @@ local function resolveItemFromPrompt(desc)
         or parent:FindFirstChildWhichIsA("BasePart")
         or (model and model:FindFirstChildWhichIsA("BasePart"))
 
-    if not targetPart or targetPart.Transparency >= 1 then
+    if not targetPart then
         return nil
     end
-    if isCoordinateBanned(targetPart.Position) or isInvalidItemPart(targetPart) then
-        return nil
-    end
-    if not desc.Enabled then
+
+    local position = safeGetPartPosition(targetPart)
+    if not position or isCoordinateBanned(position) or isInvalidItemPart(targetPart) then
         return nil
     end
 
@@ -196,7 +250,7 @@ local function resolveItemFromPrompt(desc)
         part = targetPart,
         parent = parent,
         name = itemName,
-        position = targetPart.Position,
+        position = position,
     }
 end
 
@@ -223,14 +277,16 @@ local function refreshItemCache()
     lastCacheRefresh = now
     table.clear(itemCache)
 
-    for _, desc in ipairs(workspace:GetDescendants()) do
-        if desc:IsA("ProximityPrompt") then
-            local item = resolveItemFromPrompt(desc)
-            if item and shouldFarmItem(item.name) then
-                table.insert(itemCache, item)
+    pcall(function()
+        for _, desc in ipairs(workspace:GetDescendants()) do
+            if desc:IsA("ProximityPrompt") then
+                local item = resolveItemFromPrompt(desc)
+                if item and shouldFarmItem(item.name) then
+                    table.insert(itemCache, item)
+                end
             end
         end
-    end
+    end)
 
     return itemCache
 end
@@ -239,9 +295,18 @@ local function getNearestItem(hrp)
     local nearest
     local shortest = math.huge
 
+    local hrpPos = safeGetPartPosition(hrp)
+    if not hrpPos then
+        return nil, math.huge
+    end
+
     for _, item in ipairs(refreshItemCache()) do
-        if item.prompt:IsDescendantOf(workspace) and not isInvalidItemPart(item.parent) then
-            local dist = (hrp.Position - item.position).Magnitude
+        local promptOk = pcall(function()
+            return item.prompt:IsDescendantOf(workspace)
+        end)
+        if promptOk and not isInvalidItemPart(item.parent) then
+            local position = safeGetPartPosition(item.part) or item.position
+            local dist = (hrpPos - position).Magnitude
             if dist < shortest then
                 shortest = dist
                 nearest = item
@@ -254,33 +319,39 @@ end
 
 local function applyESP(part, name)
     if espObjects[part] then return end
-    if not part or part.Transparency == 1 or isCoordinateBanned(part.Position) or isInvalidItemPart(part) then
+
+    local position = safeGetPartPosition(part)
+    if not part or not position or isCoordinateBanned(position) or isInvalidItemPart(part) then
         return
     end
 
-    local bgui = Instance.new("BillboardGui")
-    bgui.Name = "YBA_Item_ESP"
-    bgui.AlwaysOnTop = true
-    bgui.Size = UDim2.new(0, 140, 0, 32)
-    bgui.Adornee = part
+    pcall(function()
+        local bgui = Instance.new("BillboardGui")
+        bgui.Name = "YBA_Item_ESP"
+        bgui.AlwaysOnTop = true
+        bgui.Size = UDim2.new(0, 140, 0, 32)
+        bgui.Adornee = part
 
-    local text = Instance.new("TextLabel")
-    text.Parent = bgui
-    text.BackgroundTransparency = 1
-    text.Size = UDim2.new(1, 0, 1, 0)
-    text.Text = name
-    text.TextColor3 = Color3.fromRGB(0, 255, 255)
-    text.TextSize = 14
-    text.Font = Enum.Font.GothamBold
-    text.TextStrokeTransparency = 0
+        local text = Instance.new("TextLabel")
+        text.Parent = bgui
+        text.BackgroundTransparency = 1
+        text.Size = UDim2.new(1, 0, 1, 0)
+        text.Text = name
+        text.TextColor3 = Color3.fromRGB(0, 255, 255)
+        text.TextSize = 14
+        text.Font = Enum.Font.GothamBold
+        text.TextStrokeTransparency = 0
 
-    bgui.Parent = part
-    espObjects[part] = bgui
+        bgui.Parent = part
+        espObjects[part] = bgui
+    end)
 end
 
 local function clearESP()
     for part, gui in pairs(espObjects) do
-        if gui then gui:Destroy() end
+        pcall(function()
+            if gui then gui:Destroy() end
+        end)
         espObjects[part] = nil
     end
     table.clear(espObjects)
@@ -295,8 +366,10 @@ end
 
 local function zeroHrpVelocity(hrp)
     if not hrp then return end
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
+    pcall(function()
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end)
 end
 
 local function cleanupFlight()
@@ -311,7 +384,9 @@ local function cleanupFlight()
         flightState.heartbeatConn:Disconnect()
     end
     if flightState.cframeValue then
-        flightState.cframeValue:Destroy()
+        pcall(function()
+            flightState.cframeValue:Destroy()
+        end)
     end
 
     flightState = nil
@@ -335,17 +410,36 @@ local function ensureNoClip()
         local hrp = char:FindFirstChild("HumanoidRootPart")
         for _, part in ipairs(char:GetDescendants()) do
             if part:IsA("BasePart") and part ~= hrp then
-                part.CanCollide = false
+                pcall(function()
+                    part.CanCollide = false
+                end)
             end
         end
     end)
 end
 
+local function firePromptReliably(prompt)
+    safeUnlockPrompt(prompt)
+    for i = 1, 4 do
+        pcall(function()
+            fireproximityprompt(prompt, 0)
+        end)
+        task.wait(0.05)
+    end
+end
+
 local function moveToItemAndPickup(item)
-    if not item or not item.part or not item.part:IsDescendantOf(workspace) then
+    if not item or not item.part or not item.prompt then
         return false
     end
-    if not item.prompt or not item.prompt:IsDescendantOf(workspace) then
+
+    local partExists = pcall(function()
+        return item.part:IsDescendantOf(workspace)
+    end)
+    local promptExists = pcall(function()
+        return item.prompt:IsDescendantOf(workspace)
+    end)
+    if not partExists or not promptExists then
         return false
     end
     if isInvalidItemPart(item.parent) then
@@ -362,8 +456,20 @@ local function moveToItemAndPickup(item)
     cframeValue.Value = hrp.CFrame
     cframeValue.Parent = player
 
-    local targetCFrame = CFrame.new(item.part.Position + Vector3.new(0, 1.2, 0))
-    local distance = (targetCFrame.Position - hrp.Position).Magnitude
+    local itemPosition = safeGetPartPosition(item.part)
+    if not itemPosition then
+        cleanupFlight()
+        return false
+    end
+
+    local targetCFrame = CFrame.new(itemPosition + Vector3.new(0, 1.2, 0))
+    local hrpPos = safeGetPartPosition(hrp)
+    if not hrpPos then
+        cleanupFlight()
+        return false
+    end
+
+    local distance = (targetCFrame.Position - hrpPos).Magnitude
     local tweenTime = math.max(distance / _G.FlySpeed, 0.05)
 
     local tween = TweenService:Create(
@@ -377,12 +483,16 @@ local function moveToItemAndPickup(item)
         local currentHrp = char:FindFirstChild("HumanoidRootPart")
         if not currentHrp or not cframeValue.Parent then return end
 
-        currentHrp.CFrame = cframeValue.Value
+        pcall(function()
+            currentHrp.CFrame = cframeValue.Value
+        end)
         zeroHrpVelocity(currentHrp)
 
         for _, part in ipairs(char:GetDescendants()) do
             if part:IsA("BasePart") and part ~= currentHrp then
-                part.CanCollide = false
+                pcall(function()
+                    part.CanCollide = false
+                end)
             end
         end
     end)
@@ -394,10 +504,13 @@ local function moveToItemAndPickup(item)
     }
 
     local function shouldContinue()
-        return _G.ItemFarm
-            and item.part:IsDescendantOf(workspace)
-            and not isInvalidItemPart(item.part)
-            and item.prompt:IsDescendantOf(workspace)
+        local partOk = pcall(function()
+            return item.part:IsDescendantOf(workspace) and not isInvalidItemPart(item.part)
+        end)
+        local promptOk = pcall(function()
+            return item.prompt:IsDescendantOf(workspace)
+        end)
+        return _G.ItemFarm and partOk and promptOk
     end
 
     tween:Play()
@@ -412,7 +525,10 @@ local function moveToItemAndPickup(item)
             cleanupFlight()
             return false
         end
-        if not hrp or not hrp.Parent then
+        local hrpAlive = pcall(function()
+            return hrp and hrp.Parent
+        end)
+        if not hrpAlive then
             cleanupFlight()
             return false
         end
@@ -424,37 +540,61 @@ local function moveToItemAndPickup(item)
         return false
     end
 
-    targetCFrame = CFrame.new(item.part.Position + Vector3.new(0, 1.2, 0))
+    itemPosition = safeGetPartPosition(item.part)
+    if not itemPosition then
+        cleanupFlight()
+        return false
+    end
+
+    targetCFrame = CFrame.new(itemPosition + Vector3.new(0, 1.2, 0))
     cframeValue.Value = targetCFrame
 
     local currentHrp = char:FindFirstChild("HumanoidRootPart")
     if currentHrp then
-        currentHrp.CFrame = targetCFrame
+        pcall(function()
+            currentHrp.Anchored = true
+            currentHrp.CFrame = targetCFrame
+        end)
         zeroHrpVelocity(currentHrp)
     end
 
-    task.wait(0.03)
+    task.wait(0.35)
 
-    if shouldContinue() then
-        item.prompt.RequiresLineOfSight = false
-        item.prompt.HoldDuration = 0
-        fireproximityprompt(item.prompt, 0)
+    if shouldContinue() and currentHrp then
+        local hrpStillAlive = pcall(function()
+            return currentHrp.Parent
+        end)
+        if hrpStillAlive then
+            firePromptReliably(item.prompt)
+            task.wait(0.15)
+            pcall(function()
+                currentHrp.Anchored = false
+            end)
+        end
+    elseif currentHrp then
+        pcall(function()
+            currentHrp.Anchored = false
+        end)
     end
 
-    local pickedUp = not item.prompt:IsDescendantOf(workspace) or isInvalidItemPart(item.parent)
+    local pickedUp = false
+    pcall(function()
+        pickedUp = not item.prompt:IsDescendantOf(workspace) or isInvalidItemPart(item.parent)
+    end)
 
     cleanupFlight()
     return pickedUp
 end
 
-local function tryRespawn()
-    if not _G.AutoRespawn then return end
-    local _, _, hum = getCharacter()
-    if hum and hum.Health <= 0 then
-        pcall(function()
-            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-            remote = remote and remote:FindFirstChild("LoadCharacter")
-            if remote then remote:FireServer() end
+local function setAntiAfkEnabled(enabled)
+    _G.AntiAFK = enabled
+    if antiAfkConnection then
+        antiAfkConnection:Disconnect()
+        antiAfkConnection = nil
+    end
+    if enabled then
+        antiAfkConnection = player.Idled:Connect(function()
+            game:GetService("VirtualUser"):ClickButton2(Vector2.new())
         end)
     end
 end
@@ -486,10 +626,10 @@ MainTab:CreateSection("Налаштування конфігу")
 MainTab:CreateToggle({
     Name = "Автозавантаження конфігу при старті",
     CurrentValue = shouldAutoLoad,
-    Flag = "AutoLoadToggle",
     Callback = function(value)
-        shouldAutoLoad = value
-        pcall(function() if writefile then writefile(autoLoadFile, tostring(value)) end end)
+        pcall(function()
+            if writefile then writefile(autoLoadFile, tostring(value)) end
+        end)
     end,
 })
 
@@ -504,93 +644,15 @@ MainTab:CreateButton({
     Name = "Зберегти поточний конфіг",
     Callback = function()
         pcall(function() Rayfield:SaveConfiguration() end)
-        Rayfield:Notify({
-            Title = "Успіх",
-            Content = "Налаштування збережено!",
-            Duration = 3,
-        })
     end,
-})
-
-MainTab:CreateSection("Характеристики")
-
-local JP_Value = 50
-local function applyJumpPower()
-    local _, _, hum = getCharacter()
-    if hum then hum.JumpPower = JP_Value end
-end
-
-player.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    applyJumpPower()
-end)
-
-task.spawn(function()
-    while task.wait(0.15) do
-        applyJumpPower()
-    end
-end)
-
-MainTab:CreateSlider({
-    Name = "Висота стрибка (JumpPower)",
-    Range = { 50, 200 },
-    Increment = 1,
-    CurrentValue = 50,
-    Flag = "JumpPower_Slider",
-    Callback = function(value) JP_Value = value end,
 })
 
 -- ====================
 -- МАГАЗИН
 -- ====================
-local DontSell = {
-    ["Lucky Arrow"] = true,
-    ["Christmas Present"] = true,
-    ["Green Candy"] = true,
-    ["Yellow Candy"] = true,
-    ["Blue Candy"] = true,
-    ["Red Candy"] = true,
-    ["Lucky Stone Mask"] = true
-}
 local sellQueue = {}
 local isSelling = false
 
-local function getMerchant()
-    local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
-    return dialogue and dialogue:FindFirstChild("Merchant")
-end
-
-local function autoClickDialogueButtons()
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return end
-
-    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
-    if not dialogueGui then return end
-
-    for _, btn in ipairs(dialogueGui:GetDescendants()) do
-        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-            local txt = btn.Text or ""
-            
-            -- 1. "I'd like to sell this..."
-            if txt:find("sell this") or txt:find("I'd like to sell") then
-                pcall(function()
-                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
-                end)
-            -- 2. "Deal."
-            elseif txt:find("Deal") or txt == "Deal." then
-                pcall(function()
-                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
-                end)
-            -- 3. "I'll sell ALL of these."
-            elseif txt:find("ALL") or txt:find("sell ALL") or txt:find("All") then
-                pcall(function()
-                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
-                end)
-            end
-        end
-    end
-end
-
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -600,90 +662,18 @@ local function processSellQueue()
 
         local item = table.remove(sellQueue, 1)
         local backpack = player:FindFirstChild("Backpack")
-        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and _G.ItemsToSell[item.Name] == true then
             local char, _, hum = getCharacter()
             local remote = char and char:FindFirstChild("RemoteEvent")
-            local merchant = getMerchant()
-
-            if remote and hum and merchant then
-                pcall(function()
-                    -- 1. Беремо предмет у руки
-                    hum:EquipTool(item)
-                    task.wait(0.2)
-
-                    -- 2. Відкриваємо діалог продавця
-                    remote:FireServer("PromptTriggered", merchant)
-                    task.wait(0.15)
-                    autoClickDialogueButtons()
-
-                    -- Крок 1: "I'd like to sell this..."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.15)
-
-                    -- Крок 2: "Deal."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.15)
-
-                    -- Крок 3: "I'll sell ALL of these." (Option1 замість Option2)
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    autoClickDialogueButtons()
-                    task.wait(0.2)
-                end)
-            end
-        end
-    end
-
-    isSelling = false
-end
-
-local function processSellQueue()
-    if isSelling then return end
-    isSelling = true
-
-    while #sellQueue > 0 do
-        if not _G.AutoSell then break end
-
-        local item = table.remove(sellQueue, 1)
-        local backpack = player:FindFirstChild("Backpack")
-        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
-            local char, _, hum = getCharacter()
-            local remote = char and char:FindFirstChild("RemoteEvent")
-            local merchant = getMerchant()
-
-            if remote and hum and merchant then
-                pcall(function()
-                    -- 1. Беремо предмет у руки
-                    hum:EquipTool(item)
-                    task.wait(0.15)
-
-                    -- 2. Відкриваємо діалог продавця
-                    remote:FireServer("PromptTriggered", merchant)
-                    task.wait(0.1)
-                    autoClickDialogueButtons()
-
-                    -- Крок 1: "I'd like to sell this..."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                    task.wait(0.1)
-                    autoClickDialogueButtons()
-
-                    -- Крок 2: "Deal."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                    task.wait(0.1)
-                    autoClickDialogueButtons()
-
-                    -- Крок 3: "I'll sell ALL of these."
-                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                    task.wait(0.15)
-                    autoClickDialogueButtons()
-                end)
+            if remote and hum then
+                hum:EquipTool(item)
+                task.wait(0.45)
+                remote:FireServer("EndDialogue", {
+                    Option = "Option1",
+                    Dialogue = "Dialogue5",
+                    NPC = "Merchant",
+                })
+                task.wait(0.35)
             end
         end
     end
@@ -693,7 +683,7 @@ end
 
 local function queueItemForSale(item)
     if not _G.AutoSell then return end
-    if not item or not item:IsA("Tool") or DontSell[item.Name] then return end
+    if not item or not item:IsA("Tool") or _G.ItemsToSell[item.Name] ~= true then return end
     table.insert(sellQueue, item)
     task.spawn(processSellQueue)
 end
@@ -714,7 +704,7 @@ end)
 if player:FindFirstChild("Backpack") then setupBackpackListener(player.Backpack) end
 
 ShopTab:CreateToggle({
-    Name = "Автопродаж (крім Lucky Arrow)",
+    Name = "Автопродаж",
     CurrentValue = false,
     Flag = "AutoSell_Toggle",
     Callback = function(value)
@@ -731,6 +721,43 @@ ShopTab:CreateToggle({
         end
     end,
 })
+
+ShopTab:CreateSection("Фільтр продажу")
+
+ShopTab:CreateButton({
+    Name = "Увімкнути все",
+    Callback = function()
+        for name in pairs(_G.ItemsToSell) do
+            _G.ItemsToSell[name] = true
+        end
+    end,
+})
+
+ShopTab:CreateButton({
+    Name = "Вимкнути все",
+    Callback = function()
+        for name in pairs(_G.ItemsToSell) do
+            _G.ItemsToSell[name] = false
+        end
+    end,
+})
+
+local sortedSellItems = {}
+for name in pairs(_G.ItemsToSell) do
+    table.insert(sortedSellItems, name)
+end
+table.sort(sortedSellItems)
+
+for _, itemName in ipairs(sortedSellItems) do
+    ShopTab:CreateToggle({
+        Name = itemName,
+        CurrentValue = _G.ItemsToSell[itemName],
+        Flag = "SellFilter_" .. itemName,
+        Callback = function(value)
+            _G.ItemsToSell[itemName] = value
+        end,
+    })
+end
 
 ShopTab:CreateToggle({
     Name = "Автокупівля (Lucky Arrow)",
@@ -810,8 +837,6 @@ FarmTab:CreateToggle({
         task.spawn(function()
             setFarmStatus("Пошук предметів...")
             while _G.ItemFarm and farmThreadActive do
-                tryRespawn()
-
                 local _, hrp = getCharacter()
                 if not hrp then
                     setFarmStatus("Очікування персонажа...")
@@ -828,9 +853,10 @@ FarmTab:CreateToggle({
 
                 setFarmStatus("Лечу до: " .. targetItem.name)
                 if moveToItemAndPickup(targetItem) then
-                    banCoordinate(targetItem.position)
                     if espObjects[targetItem.part] then
-                        espObjects[targetItem.part]:Destroy()
+                        pcall(function()
+                            espObjects[targetItem.part]:Destroy()
+                        end)
                         espObjects[targetItem.part] = nil
                     end
                     lastCacheRefresh = 0
@@ -886,7 +912,7 @@ for _, itemName in ipairs(sortedItems) do
     })
 end
 
--- ESP цикл (використовує кеш)
+-- ESP цикл
 task.spawn(function()
     while true do
         task.wait(0.8)
@@ -908,17 +934,7 @@ MiscTab:CreateToggle({
     CurrentValue = false,
     Flag = "AntiAFK_Toggle",
     Callback = function(value)
-        _G.AntiAFK = value
-        if antiAfkConnection then
-            antiAfkConnection:Disconnect()
-            antiAfkConnection = nil
-        end
-        if value then
-            antiAfkConnection = player.Idled:Connect(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new())
-            end)
-        end
+        setAntiAfkEnabled(value)
     end,
 })
 
@@ -937,37 +953,22 @@ MiscTab:CreateToggle({
     end,
 })
 
-MiscTab:CreateToggle({
-    Name = "Авто-респawn при смерті",
-    CurrentValue = true,
-    Flag = "AutoRespawn_Toggle",
-    Callback = function(value)
-        _G.AutoRespawn = value
-    end,
-})
-
-MiscTab:CreateButton({
-    Name = "Очистити заблоковані координати",
-    Callback = function()
-        table.clear(bannedCoordinates)
-        lastCacheRefresh = 0
-        Rayfield:Notify({
-            Title = "UA Killer Hub",
-            Content = "Чорний список координат очищено",
-            Duration = 3,
-        })
-    end,
-})
-
-task.spawn(function()
-    if shouldAutoLoad then
-        task.wait(2.5) -- Чекаємо прогрузку інтерфейсу
-        Rayfield:LoadConfiguration()
-    end
-end)
+if shouldAutoLoad then
+    task.spawn(function()
+        task.wait(3.5)
+        pcall(function()
+            local configPath = "UAKillerHub/YBA_Config.json"
+            if (isfile and isfile(configPath)) or not isfile then
+                Rayfield:LoadConfiguration()
+            elseif writefile then
+                writefile(autoLoadFile, "false")
+            end
+        end)
+    end)
+end
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Virtual CFrame bypass активний.",
+    Content = "Завантажено. ProximityPrompt bypass активний.",
     Duration = 4,
 })
