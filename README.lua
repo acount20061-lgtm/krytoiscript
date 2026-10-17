@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — покращена версія (з автоздачею цукерок)
+-- UA Killer Hub | YBA — фінальна версія
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -28,27 +28,23 @@ end))
 -- ====================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FunctionLibrary = require(ReplicatedStorage.Modules.FunctionLibrary)
-local OldPcall = FunctionLibrary.pcall -- Зберігаємо оригінальну функцію
+local OldPcall = FunctionLibrary.pcall
 
 FunctionLibrary.pcall = function(...)
-    let args = {...}
+    local args = {...}
     
-    -- Перевірка на анти-чит YBA (11 апвалуес)
     if type(args[1]) == 'function' and #getupvalues(args[1]) == 11 then
-        return -- Ігноруємо виклик, щоб не отримати краш
+        return
     end
  
-    return OldPcall(...) -- Виконуємо оригінальну функцію
+    return OldPcall(...)
 end
 -- =======================================================
 
--- Налаштування автозавантаження
 pcall(function()
-    -- Створюємо папку, якщо її немає
     if makefolder and not isfolder("UAKillerHub") then
         makefolder("UAKillerHub")
     end
-    -- Читаємо статус
     if isfile and isfile(autoLoadFile) then
         shouldAutoLoad = (readfile(autoLoadFile) == "true")
     elseif writefile then
@@ -545,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС ДІАЛОГІВ + ОРИГІНАЛЬНИЙ АВТОПРОДАЖ БЕЗ КЛІКІВ)
+-- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС ДІАЛОГІВ + ОРИГІНАЛЬНИЙ АВТОПРОДАЖ)
 -- =======================================================
 local function acquireLock(timeout)
     timeout = timeout or 4
@@ -611,7 +607,7 @@ local function getDialogueGui()
         or playerGui:FindFirstChild("DialogueBox")
 end
 
--- Безпечний клік по 2-й кнопці для здачі цукерок (без зміни хітбоксів)
+-- Безпечний клік по 2-й кнопці для здачі цукерок
 local function clickOption2()
     local targetBtn = nil
     local startTime = tick()
@@ -755,7 +751,7 @@ local function skipDialogueEnding()
     end
 end
 
--- Твій оригінальний автопродаж (БЕЗ кліків по кнопках) + захист черги
+-- Твій оригінальний автопродаж (без кліків по кнопках) + захист черги
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -777,24 +773,19 @@ local function processSellQueue()
             if remote and hum and merchant then
                 if acquireLock(4) then
                     pcall(function()
-                        -- 1. Беремо предмет у руки
                         hum:EquipTool(item)
                         task.wait(0.15)
 
-                        -- 2. Відкриваємо діалог продавця (чистий ремот)
                         remote:FireServer("PromptTriggered", merchant)
                         task.wait(0.1)
 
-                        -- Крок 1: "I'd like to sell this..."
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
                         task.wait(0.1)
 
-                        -- Крок 2: "Deal."
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         task.wait(0.1)
 
-                        -- Крок 3: "I'll sell ALL of these."
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
@@ -812,7 +803,7 @@ local function processSellQueue()
     isSelling = false
 end
 
--- Черга автоздачі цукерок (ізольована і безпечна)
+-- Черга автоздачі цукерок
 local function processEventCandyQueue()
     if isEventSelling then return end
     isEventSelling = true
@@ -1165,6 +1156,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Оригінальний автопродаж + автоздача цукерок готові!",
+    Content = "Завантажено успішно!",
     Duration = 4,
 })
