@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — покращена фінальна версія
+-- UA Killer Hub | YBA — покращена версія
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + ЗАХИСТ ВІД ПЕРЕТИНУ ЧЕРГ)
+-- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС ДІАЛОГІВ БЕЗ КЛІКІВ ПО КНОПКАХ)
 -- =======================================================
 local function acquireLock(timeout)
     timeout = timeout or 4
@@ -607,6 +607,7 @@ local function getDialogueGui()
         or playerGui:FindFirstChild("DialogueBox")
 end
 
+-- Пошук і клік суворо по нижній (2-й) кнопці для івент-Казанця
 local function clickOption2()
     local targetBtn = nil
     local startTime = tick()
@@ -750,17 +751,13 @@ local function skipDialogueEnding()
     end
 end
 
--- Черга автопродажу (з перевіркою чи не йде здача цукерок)
+-- Твій оригінальний автопродаж БЕЗ кліків по кнопках
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
 
     while #sellQueue > 0 do
         if not _G.AutoSell then break end
-
-        while isEventSelling do
-            task.wait(0.2)
-        end
 
         local item = table.remove(sellQueue, 1)
         local backpack = player:FindFirstChild("Backpack")
@@ -772,19 +769,24 @@ local function processSellQueue()
             if remote and hum and merchant then
                 if acquireLock(4) then
                     pcall(function()
+                        -- 1. Беремо предмет у руки
                         hum:EquipTool(item)
                         task.wait(0.15)
 
+                        -- 2. Відкриваємо діалог продавця (БЕЗ КЛІКІВ)
                         remote:FireServer("PromptTriggered", merchant)
                         task.wait(0.1)
 
+                        -- Крок 1: "I'd like to sell this..."
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
                         task.wait(0.1)
 
+                        -- Крок 2: "Deal."
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         task.wait(0.1)
 
+                        -- Крок 3: "I'll sell ALL of these."
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
@@ -802,17 +804,12 @@ local function processSellQueue()
     isSelling = false
 end
 
--- Черга автоздачі цукерок (з перевіркою чи не йде звичайний продаж)
 local function processEventCandyQueue()
     if isEventSelling then return end
     isEventSelling = true
 
     while #eventCandyQueue > 0 do
         if not _G.AutoEventCandy then break end
-
-        while isSelling do
-            task.wait(0.2)
-        end
 
         local item = table.remove(eventCandyQueue, 1)
         local backpack = player:FindFirstChild("Backpack")
@@ -1155,6 +1152,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Фінальна версія успішно запущена!",
+    Content = "Завантажено. Усе працює через чисті ремоти без кліків!",
     Duration = 4,
 })
