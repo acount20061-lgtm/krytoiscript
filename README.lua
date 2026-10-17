@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — фінальна версія із затримкою 2с на Continue та захистом потоків продажу
+-- UA Killer Hub | YBA — повністю робоча стабільна версія
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -474,7 +474,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 local MainTab = Window:CreateTab("Головна", 4483362458)
-val FarmTab = Window:CreateTab("Автофарм", 4483362534)
+local FarmTab = Window:CreateTab("Автофарм", 4483362534)
 local ShopTab = Window:CreateTab("Магазин", 4483362458)
 local MiscTab = Window:CreateTab("Інше", 4483362458)
 
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (СУВОРИЙ ЗАХИСТ ВІД КОНФЛІКТІВ І ЗАТРИМКА 2С)
+-- МАГАЗИН ТА ІВЕНТ (ЗАХИСТ ПОТОКІВ І ЗАТРИМКА 2С)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -642,7 +642,6 @@ local function clickEventCandyOption()
     return false
 end
 
--- Клік за зафіксованими координатами (X: 508.6, Y: 434.5)
 local function clickContinueButton()
     pcall(function()
         if VirtualInputManager then
@@ -667,7 +666,7 @@ local function submitAllCandies()
 
         clickEventCandyOption()
         
-        -- Робимо затримку 2 секунди, щоб вікно "CLICK TO CONTINUE" встигло з'явитися
+        -- Затримка 2 секунди перед закриттям вікна балів
         task.wait(2.0)
 
         clickContinueButton()
@@ -675,11 +674,10 @@ local function submitAllCandies()
     end)
 end
 
--- Потік здачі цукерок (чекає завершення поточного продажу предмета)
+-- Потік здачі цукерок
 task.spawn(function()
     while true do
         task.wait(0.5)
-        -- Якщо йде продаж предмета, івент чекає, щоб не перебити діалог посередині
         if _G.AutoEventCandy and not isSelling and countTotalCandies() >= 10 then
             isSubmittingCandies = true
             while countTotalCandies() > 0 and _G.AutoEventCandy do
@@ -691,11 +689,10 @@ task.spawn(function()
     end
 end)
 
--- Потік автопродажу предметів
+-- Потік автопродажу
 task.spawn(function()
     while true do
         task.wait(0.4)
-        -- Якщо зараз здаються цукерки, продаж чекає
         if _G.AutoSell and not isSubmittingCandies and #sellQueue > 0 then
             isSelling = true
             local item = table.remove(sellQueue, 1)
@@ -1023,6 +1020,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено! Додано затримку 2с і захист потоків продажу.",
+    Content = "Завантажено успішно!",
     Duration = 4,
 })
