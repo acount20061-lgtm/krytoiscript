@@ -63,6 +63,7 @@ if not RayfieldSuccess then return end
 -- ====================
 _G.AutoSell = false
 _G.AutoBuy = false
+_G.AutoEventCandy = false
 _G.ItemFarm = false
 _G.ItemESP = false
 _G.FlySpeed = 150
@@ -752,6 +753,52 @@ ShopTab:CreateToggle({
         end
     end,
 })
+
+ShopTab:CreateToggle({
+    Name = "Авто-здача конфет (Halloween Event)",
+    CurrentValue = false,
+    Flag = "AutoEventCandy_Toggle",
+    Callback = function(value)
+        _G.AutoEventCandy = value
+    end,
+})
+
+task.spawn(function()
+    while true do
+        task.wait(300)
+        if not _G.AutoEventCandy then
+            continue
+        end
+
+        local hasEventCandy = false
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item:IsA("Tool") and (
+                    item.Name == "Green Candy"
+                    or item.Name == "Yellow Candy"
+                    or item.Name == "Blue Candy"
+                    or item.Name == "Red Candy"
+                ) then
+                    hasEventCandy = true
+                    break
+                end
+            end
+        end
+
+        if hasEventCandy then
+            local char = player.Character
+            local remote = char and char:FindFirstChild("RemoteEvent")
+            if remote then
+                remote:FireServer("EndDialogue", {
+                    Option = "Option2",
+                    Dialogue = "Dialogue1",
+                    NPC = "Halloween Event",
+                })
+            end
+        end
+    end
+end)
 
 -- ====================
 -- АВТОФАРМ
