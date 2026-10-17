@@ -5,12 +5,10 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local autoLoadFile = "UAKillerHub/YBA_AutoLoad.txt"
 local shouldAutoLoad = false
-
 -- =======================================================
 -- АКТИВАЦІЯ ITEM MAGNITUDE BYPASS
 -- =======================================================
@@ -22,29 +20,32 @@ OldIndexItem = hookmetamethod(player.Character.PrimaryPart.Position, "__index", 
                                                 
     return OldIndexItem(self, Key)
 end))
-
 -- ====================================================
 -- CRASH & WALKSPEED BYPASS
 -- ====================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FunctionLibrary = require(ReplicatedStorage.Modules.FunctionLibrary)
-local OldPcall = FunctionLibrary.pcall
+local OldPcall = FunctionLibrary.pcall -- Зберігаємо оригінальну функцію
 
 FunctionLibrary.pcall = function(...)
     local args = {...}
     
+    -- Перевірка на анти-чит YBA (11 апвалуес)
     if type(args[1]) == 'function' and #getupvalues(args[1]) == 11 then
-        return
+        return -- Ігноруємо виклик, щоб не отримати краш
     end
  
-    return OldPcall(...)
+    return OldPcall(...) -- Виконуємо оригінальну функцію
 end
 -- =======================================================
 
+-- Налаштування автозавантаження
 pcall(function()
+    -- Створюємо папку, якщо її немає
     if makefolder and not isfolder("UAKillerHub") then
         makefolder("UAKillerHub")
     end
+    -- Читаємо статус
     if isfile and isfile(autoLoadFile) then
         shouldAutoLoad = (readfile(autoLoadFile) == "true")
     elseif writefile then
@@ -61,7 +62,6 @@ if not RayfieldSuccess then return end
 -- ГЛОБАЛЬНІ НАЛАШТУВАННЯ
 -- ====================
 _G.AutoSell = false
-_G.AutoEventCandy = false
 _G.AutoBuy = false
 _G.ItemFarm = false
 _G.ItemESP = false
@@ -112,7 +112,7 @@ local noclipConnection
 local antiAfkConnection
 
 -- ====================
--- ДОПОМІЖНІ ФУНКЦІЇ ФАРМУ
+-- ДОПОМІЖНІ ФУНКЦІЇ
 -- ====================
 local function setFarmStatus(text)
     farmStatusText = text
@@ -452,7 +452,7 @@ local function tryRespawn()
     local _, _, hum = getCharacter()
     if hum and hum.Health <= 0 then
         pcall(function()
-            local remote = ReplicatedStorage:FindFirstChild("Remotes")
+            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
             remote = remote and remote:FindFirstChild("LoadCharacter")
             if remote then remote:FireServer() end
         end)
@@ -460,7 +460,7 @@ local function tryRespawn()
 end
 
 -- ====================
--- UI ІНІЦІАЛІЗАЦІЯ
+-- UI
 -- ====================
 local Window = Rayfield:CreateWindow({
     Name = "UA Killer Hub | YBA",
@@ -540,33 +540,9 @@ MainTab:CreateSlider({
     Callback = function(value) JP_Value = value end,
 })
 
--- =======================================================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС ДІАЛОГІВ БЕЗ КЛІКІВ ПО КНОПКАХ)
--- =======================================================
-local function acquireLock(timeout)
-    timeout = timeout or 4
-    local start = tick()
-    while _G.DialogueLock do
-        if typeof(_G.DialogueLockTime) == "number" and tick() - _G.DialogueLockTime > 8 then
-            _G.DialogueLock = false
-            break
-        end
-        if tick() - start >= timeout then
-            return false
-        end
-        task.wait(0.1)
-    end
-    _G.DialogueLock = true
-    _G.DialogueLockTime = tick()
-    return true
-end
-
-local function releaseLock()
-    _G.DialogueLock = false
-    _G.DialogueLockTime = nil
-    task.wait(0.2)
-end
-
+-- ====================
+-- МАГАЗИН
+-- ====================
 local DontSell = {
     ["Lucky Arrow"] = true,
     ["Christmas Present"] = true,
@@ -576,182 +552,45 @@ local DontSell = {
     ["Red Candy"] = true,
     ["Lucky Stone Mask"] = true
 }
-
-local EventCandies = {
-    ["Green Candy"] = true,
-    ["Yellow Candy"] = true,
-    ["Blue Candy"] = true,
-    ["Red Candy"] = true,
-}
-
 local sellQueue = {}
-local eventCandyQueue = {}
 local isSelling = false
-local isEventSelling = false
 
 local function getMerchant()
     local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
     return dialogue and dialogue:FindFirstChild("Merchant")
 end
 
-local function getEventNPC()
-    local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
-    return dialogue and dialogue:FindFirstChild("Halloween Event")
-end
-
-local function getDialogueGui()
+local function autoClickDialogueButtons()
     local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return nil end
-    return playerGui:FindFirstChild("DialogueGui") 
-        or playerGui:FindFirstChild("Dialogue") 
-        or playerGui:FindFirstChild("DialogueBox")
-end
+    if not playerGui then return end
 
--- Пошук і клік суворо по нижній (2-й) кнопці для івент-Казанця
-local function clickOption2()
-    local targetBtn = nil
-    local startTime = tick()
+    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
+    if not dialogueGui then return end
 
-    while tick() - startTime < 2.0 do
-        local dialogueGui = getDialogueGui()
-        if dialogueGui then
-            local candidates = {}
-            local cam = workspace.CurrentCamera
-            local vpSize = cam and cam.ViewportSize or Vector2.new(1280, 720)
-
-            for _, btn in ipairs(dialogueGui:GetDescendants()) do
-                if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-                    local name = btn.Name:lower()
-                    local text = (btn:IsA("TextButton") and btn.Text) or ""
-                    local childText = btn:FindFirstChildOfClass("TextLabel")
-                    if childText and childText.Text ~= "" then
-                        text = childText.Text
-                    end
-
-                    local isClose = (name:find("close") or name:find("exit") or name:find("cancel") or text:lower() == "x" or text == "✕")
-                    local isFullScreen = (btn.AbsoluteSize.X > vpSize.X * 0.7 and btn.AbsoluteSize.Y > vpSize.Y * 0.7)
-                    local isTiny = (btn.AbsoluteSize.X < 20 or btn.AbsoluteSize.Y < 15)
-
-                    if not isClose and not isFullScreen and not isTiny then
-                        table.insert(candidates, {
-                            button = btn,
-                            y = btn.AbsolutePosition.Y,
-                            x = btn.AbsolutePosition.X,
-                            name = btn.Name,
-                            text = text
-                        })
-                    end
-                end
-            end
-
-            if #candidates >= 2 then
-                table.sort(candidates, function(a, b)
-                    if math.abs(a.y - b.y) > 10 then
-                        return a.y < b.y
-                    end
-                    return a.x < b.x
-                end)
-
-                targetBtn = candidates[2].button
-                break
-            end
-        end
-        task.wait(0.1)
-    end
-
-    if targetBtn then
-        pcall(function()
-            local bx = targetBtn.AbsolutePosition.X + (targetBtn.AbsoluteSize.X / 2)
-            local by = targetBtn.AbsolutePosition.Y + (targetBtn.AbsoluteSize.Y / 2)
-
-            if VirtualInputManager then
-                VirtualInputManager:SendMouseButtonEvent(bx, by, 0, true, game, 0)
-                task.wait(0.03)
-                VirtualInputManager:SendMouseButtonEvent(bx, by, 0, false, game, 0)
-            elseif VirtualUser then
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(bx, by))
-            end
-
-            if firesignal then
-                firesignal(targetBtn.MouseButton1Click)
-                firesignal(targetBtn.Activated)
-            else
-                targetBtn.Activated:Fire()
-            end
-        end)
-        return true
-    end
-    return false
-end
-
-local function skipDialogueEnding()
-    local startTime = tick()
-
-    while tick() - startTime < 1.5 do
-        local dialogueGui = getDialogueGui()
-        if not dialogueGui or not dialogueGui.Enabled then
-            break
-        end
-
-        local cam = workspace.CurrentCamera
-        local vpSize = cam and cam.ViewportSize or Vector2.new(1280, 720)
-        local clickX = vpSize.X / 2
-        local clickY = vpSize.Y * 0.65
-
-        for _, el in ipairs(dialogueGui:GetDescendants()) do
-            if el:IsA("TextLabel") and (el.Text:find("продолжить") or el.Text:find("continue") or el.Text:find("points")) then
-                clickX = el.AbsolutePosition.X + (el.AbsoluteSize.X / 2)
-                clickY = el.AbsolutePosition.Y + (el.AbsoluteSize.Y / 2)
-                break
-            end
-        end
-
-        for _, btn in ipairs(dialogueGui:GetDescendants()) do
-            if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
+    for _, btn in ipairs(dialogueGui:GetDescendants()) do
+        if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
+            local txt = btn.Text or ""
+            
+            -- 1. "I'd like to sell this..."
+            if txt:find("sell this") or txt:find("I'd like to sell") then
                 pcall(function()
-                    if firesignal then
-                        firesignal(btn.MouseButton1Click)
-                        firesignal(btn.Activated)
-                    else
-                        btn.Activated:Fire()
-                    end
+                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
+                end)
+            -- 2. "Deal."
+            elseif txt:find("Deal") or txt == "Deal." then
+                pcall(function()
+                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
+                end)
+            -- 3. "I'll sell ALL of these."
+            elseif txt:find("ALL") or txt:find("sell ALL") or txt:find("All") then
+                pcall(function()
+                    if firesignal then firesignal(btn.MouseButton1Click) else btn.Activated:Fire() end
                 end)
             end
         end
-
-        pcall(function()
-            if VirtualInputManager then
-                VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 0)
-                task.wait(0.02)
-                VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 0)
-
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                task.wait(0.02)
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-            elseif VirtualUser then
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(clickX, clickY))
-            end
-        end)
-
-        local hasVisibleDialog = false
-        for _, el in ipairs(dialogueGui:GetDescendants()) do
-            if el:IsA("GuiObject") and el.Visible and el.Transparency < 1 then
-                hasVisibleDialog = true
-                break
-            end
-        end
-
-        if not hasVisibleDialog then
-            break
-        end
-
-        task.wait(0.12)
     end
 end
 
--- Твій оригінальний автопродаж БЕЗ кліків по кнопках
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -767,36 +606,34 @@ local function processSellQueue()
             local merchant = getMerchant()
 
             if remote and hum and merchant then
-                if acquireLock(4) then
-                    pcall(function()
-                        -- 1. Беремо предмет у руки
-                        hum:EquipTool(item)
-                        task.wait(0.15)
+                pcall(function()
+                    -- 1. Беремо предмет у руки
+                    hum:EquipTool(item)
+                    task.wait(0.2)
 
-                        -- 2. Відкриваємо діалог продавця (БЕЗ КЛІКІВ)
-                        remote:FireServer("PromptTriggered", merchant)
-                        task.wait(0.1)
+                    -- 2. Відкриваємо діалог продавця
+                    remote:FireServer("PromptTriggered", merchant)
+                    task.wait(0.15)
+                    autoClickDialogueButtons()
 
-                        -- Крок 1: "I'd like to sell this..."
-                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                        task.wait(0.1)
+                    -- Крок 1: "I'd like to sell this..."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.15)
 
-                        -- Крок 2: "Deal."
-                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        task.wait(0.1)
+                    -- Крок 2: "Deal."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.15)
 
-                        -- Крок 3: "I'll sell ALL of these."
-                        remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        task.wait(0.15)
-                    end)
-                    releaseLock()
-                else
-                    table.insert(sellQueue, 1, item)
-                    task.wait(0.3)
-                end
+                    -- Крок 3: "I'll sell ALL of these." (Option1 замість Option2)
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    autoClickDialogueButtons()
+                    task.wait(0.2)
+                end)
             end
         end
     end
@@ -804,47 +641,54 @@ local function processSellQueue()
     isSelling = false
 end
 
-local function processEventCandyQueue()
-    if isEventSelling then return end
-    isEventSelling = true
+local function processSellQueue()
+    if isSelling then return end
+    isSelling = true
 
-    while #eventCandyQueue > 0 do
-        if not _G.AutoEventCandy then break end
+    while #sellQueue > 0 do
+        if not _G.AutoSell then break end
 
-        local item = table.remove(eventCandyQueue, 1)
+        local item = table.remove(sellQueue, 1)
         local backpack = player:FindFirstChild("Backpack")
-        
-        if item and backpack and item.Parent == backpack and item:IsA("Tool") and EventCandies[item.Name] then
+        if item and backpack and item.Parent == backpack and item:IsA("Tool") and not DontSell[item.Name] then
             local char, _, hum = getCharacter()
             local remote = char and char:FindFirstChild("RemoteEvent")
-            local eventNPC = getEventNPC()
+            local merchant = getMerchant()
 
-            if remote and hum and eventNPC then
-                if acquireLock(4) then
-                    pcall(function()
-                        remote:FireServer("PromptTriggered", eventNPC)
-                        task.wait(0.3)
+            if remote and hum and merchant then
+                pcall(function()
+                    -- 1. Беремо предмет у руки
+                    hum:EquipTool(item)
+                    task.wait(0.15)
 
-                        clickOption2()
-                        task.wait(0.2)
+                    -- 2. Відкриваємо діалог продавця
+                    remote:FireServer("PromptTriggered", merchant)
+                    task.wait(0.1)
+                    autoClickDialogueButtons()
 
-                        remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-                        remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-                        remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-                        
-                        task.wait(0.3)
-                        skipDialogueEnding()
-                    end)
-                    releaseLock()
-                else
-                    table.insert(eventCandyQueue, 1, item)
-                    task.wait(0.3)
-                end
+                    -- Крок 1: "I'd like to sell this..."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
+                    task.wait(0.1)
+                    autoClickDialogueButtons()
+
+                    -- Крок 2: "Deal."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
+                    task.wait(0.1)
+                    autoClickDialogueButtons()
+
+                    -- Крок 3: "I'll sell ALL of these."
+                    remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
+                    task.wait(0.15)
+                    autoClickDialogueButtons()
+                end)
             end
         end
     end
 
-    isEventSelling = false
+    isSelling = false
 end
 
 local function queueItemForSale(item)
@@ -854,22 +698,13 @@ local function queueItemForSale(item)
     task.spawn(processSellQueue)
 end
 
-local function queueEventCandy(item)
-    if not _G.AutoEventCandy then return end
-    if not item or not item:IsA("Tool") or not EventCandies[item.Name] then return end
-    table.insert(eventCandyQueue, item)
-    task.spawn(processEventCandyQueue)
-end
-
 local function setupBackpackListener(backpack)
     for _, item in ipairs(backpack:GetChildren()) do
         queueItemForSale(item)
-        queueEventCandy(item)
     end
     backpack.ChildAdded:Connect(function(item)
         task.wait(0.35)
         queueItemForSale(item)
-        queueEventCandy(item)
     end)
 end
 
@@ -893,25 +728,6 @@ ShopTab:CreateToggle({
             end
         else
             table.clear(sellQueue)
-        end
-    end,
-})
-
-ShopTab:CreateToggle({
-    Name = "Авто-здача конфет (Halloween Event)",
-    CurrentValue = false,
-    Flag = "AutoEventCandy_Toggle",
-    Callback = function(value)
-        _G.AutoEventCandy = value
-        if value then
-            local backpack = player:FindFirstChild("Backpack")
-            if backpack then
-                for _, item in ipairs(backpack:GetChildren()) do
-                    queueEventCandy(item)
-                end
-            end
-        else
-            table.clear(eventCandyQueue)
         end
     end,
 })
@@ -1070,7 +886,7 @@ for _, itemName in ipairs(sortedItems) do
     })
 end
 
--- ESP цикл
+-- ESP цикл (використовує кеш)
 task.spawn(function()
     while true do
         task.wait(0.8)
@@ -1145,13 +961,13 @@ MiscTab:CreateButton({
 
 task.spawn(function()
     if shouldAutoLoad then
-        task.wait(2.5)
+        task.wait(2.5) -- Чекаємо прогрузку інтерфейсу
         Rayfield:LoadConfiguration()
     end
 end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Усе працює через чисті ремоти без кліків!",
+    Content = "Завантажено. Virtual CFrame bypass активний.",
     Duration = 4,
 })
