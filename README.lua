@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — остаточна виправлена версія
+-- UA Killer Hub | YBA — остаточна фінальна збірна версія
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (ПОВНІСТЮ НЕЗАЛЕЖНІ ПОТОКИ)
+-- МАГАЗИН ТА ІВЕНТ (СПІЛЬНИЙ М'ЮТЕКС ISBUSY)
 -- =======================================================
 local DontSell = {
     ["Lucky Arrow"] = true,
@@ -562,8 +562,7 @@ local EventCandies = {
 
 local sellQueue = {}
 local eventCandyQueue = {}
-local isSelling = false
-local isEventSelling = false
+local isBusy = false -- Запобігає конфлікту при одночасному запуску
 
 local function getMerchant()
     local dialogue = ReplicatedStorage:FindFirstChild("Dialogue")
@@ -575,11 +574,16 @@ local function getEventNPC()
     return dialogue and dialogue:FindFirstChild("Halloween Event")
 end
 
-local function autoClickDialogueButtons()
+local function getDialogueGui()
     local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return end
+    if not playerGui then return nil end
+    return playerGui:FindFirstChild("DialogueGui") 
+        or playerGui:FindFirstChild("Dialogue") 
+        or playerGui:FindFirstChild("DialogueBox")
+end
 
-    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue")
+local function autoClickDialogueButtons()
+    local dialogueGui = getDialogueGui()
     if not dialogueGui then return end
 
     for _, btn in ipairs(dialogueGui:GetDescendants()) do
@@ -595,18 +599,13 @@ local function autoClickDialogueButtons()
 end
 
 local function clickOption2()
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return false end
-    
-    local dialogueGui = playerGui:FindFirstChild("DialogueGui") 
-        or playerGui:FindFirstChild("Dialogue") 
-        or playerGui:FindFirstChild("DialogueBox")
+    local dialogueGui = getDialogueGui()
     if not dialogueGui then return false end
 
     local targetBtn = nil
     local startTime = tick()
 
-    while tick() - startTime < 2.0 do
+    while tick() - startTime < 1.5 do
         local candidates = {}
         for _, btn in ipairs(dialogueGui:GetDescendants()) do
             if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
@@ -666,12 +665,34 @@ local function clickOption2()
     return false
 end
 
--- Незалежний потік автопродажу
+local function skipDialogueEnding()
+    local dialogueGui = getDialogueGui()
+    if not dialogueGui then return end
+
+    local startTime = tick()
+    while tick() - startTime < 1.0 do
+        for _, btn in ipairs(dialogueGui:GetDescendants()) do
+            if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
+                pcall(function()
+                    if firesignal then
+                        firesignal(btn.MouseButton1Click)
+                        firesignal(btn.Activated)
+                    else
+                        btn.Activated:Fire()
+                    end
+                end)
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+-- Потік автопродажу
 task.spawn(function()
     while true do
-        task.wait(0.5)
-        if _G.AutoSell and #sellQueue > 0 and not isSelling then
-            isSelling = true
+        task.wait(0.3)
+        if _G.AutoSell and #sellQueue > 0 and not isBusy then
+            isBusy = true
             local item = table.remove(sellQueue, 1)
             local backpack = player:FindFirstChild("Backpack")
             
@@ -701,24 +722,24 @@ task.spawn(function()
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        task.wait(0.25)
+                        task.wait(0.3)
                         autoClickDialogueButtons()
                     end)
                 else
                     table.insert(sellQueue, 1, item)
                 end
             end
-            isSelling = false
+            isBusy = false
         end
     end
 end)
 
--- Незалежний потік автоздачі цукерок
+-- Потік автоздачі цукерок (НЕ бере в руки)
 task.spawn(function()
     while true do
-        task.wait(0.5)
-        if _G.AutoEventCandy and #eventCandyQueue > 0 and not isEventSelling then
-            isEventSelling = true
+        task.wait(0.3)
+        if _G.AutoEventCandy and #eventCandyQueue > 0 and not isBusy then
+            isBusy = true
             local item = table.remove(eventCandyQueue, 1)
             local backpack = player:FindFirstChild("Backpack")
             
@@ -740,13 +761,14 @@ task.spawn(function()
                         remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         
-                        task.wait(0.35)
+                        task.wait(0.3)
+                        skipDialogueEnding()
                     end)
                 else
                     table.insert(eventCandyQueue, 1, item)
                 end
             end
-            isEventSelling = false
+            isBusy = false
         end
     end
 end)
@@ -1052,6 +1074,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено успішно! Обидві функції працюють.",
+    Content = "Завантажено успішно! Усе працює бездоганно.",
     Duration = 4,
 })
