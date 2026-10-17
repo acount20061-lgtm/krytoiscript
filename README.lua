@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — збірна версія без взяття цукерок у руки
+-- UA Killer Hub | YBA — фінальна збірна стабільна версія
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,20 +541,20 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + КЛІКИ ДІАЛОГІВ)
+-- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС ТА БЕЗПЕЧНА ЧЕРГА)
 -- =======================================================
 local function acquireLock(timeout)
-    timeout = timeout or 4
+    timeout = timeout or 5
     local start = tick()
     while _G.DialogueLock do
-        if typeof(_G.DialogueLockTime) == "number" and tick() - _G.DialogueLockTime > 8 then
+        if typeof(_G.DialogueLockTime) == "number" and tick() - _G.DialogueLockTime > 6 then
             _G.DialogueLock = false
             break
         end
         if tick() - start >= timeout then
             return false
         end
-        task.wait(0.1)
+        task.wait(0.15)
     end
     _G.DialogueLock = true
     _G.DialogueLockTime = tick()
@@ -564,7 +564,7 @@ end
 local function releaseLock()
     _G.DialogueLock = false
     _G.DialogueLockTime = nil
-    task.wait(0.2)
+    task.wait(0.35)
 end
 
 local DontSell = {
@@ -618,7 +618,6 @@ local function autoClickDialogueButtons()
     end
 end
 
--- Клік по 2-й кнопці для здачі цукерок
 local function clickOption2()
     local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return false end
@@ -699,8 +698,8 @@ local function processSellQueue()
     while #sellQueue > 0 do
         if not _G.AutoSell then break end
 
-        while isEventSelling do
-            task.wait(0.2)
+        while isEventSelling and _G.AutoEventCandy do
+            task.wait(0.4)
         end
 
         local item = table.remove(sellQueue, 1)
@@ -711,37 +710,38 @@ local function processSellQueue()
             local merchant = getMerchant()
 
             if remote and hum and merchant then
-                if acquireLock(4) then
+                if acquireLock(5) then
                     pcall(function()
                         hum:EquipTool(item)
-                        task.wait(0.15)
+                        task.wait(0.2)
 
                         remote:FireServer("PromptTriggered", merchant)
-                        task.wait(0.1)
+                        task.wait(0.15)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue1", NPC = "Merchant" })
-                        task.wait(0.1)
+                        task.wait(0.15)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue5", NPC = "Merchant" })
-                        task.wait(0.1)
+                        task.wait(0.15)
                         autoClickDialogueButtons()
 
                         remote:FireServer("DialogueType", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("EndDialogue", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
                         remote:FireServer("DialogueEnd", { Option = "Option1", Dialogue = "Dialogue3", NPC = "Merchant" })
-                        task.wait(0.15)
+                        task.wait(0.2)
                         autoClickDialogueButtons()
                     end)
                     releaseLock()
                 else
                     table.insert(sellQueue, 1, item)
-                    task.wait(0.3)
+                    task.wait(0.5)
                 end
             end
         end
+        task.wait(0.1)
     end
 
     isSelling = false
@@ -755,8 +755,8 @@ local function processEventCandyQueue()
     while #eventCandyQueue > 0 do
         if not _G.AutoEventCandy then break end
 
-        while isSelling do
-            task.wait(0.2)
+        while isSelling and _G.AutoSell do
+            task.wait(0.4)
         end
 
         local item = table.remove(eventCandyQueue, 1)
@@ -768,29 +768,29 @@ local function processEventCandyQueue()
             local eventNPC = getEventNPC()
 
             if remote and hum and eventNPC then
-                if acquireLock(4) then
+                if acquireLock(5) then
                     pcall(function()
-                        -- Цукерки НЕ беруться в руки (хуманітарний рядок EquipTool прибрано)
                         remote:FireServer("PromptTriggered", eventNPC)
-                        task.wait(0.25)
+                        task.wait(0.3)
 
                         clickOption2()
-                        task.wait(0.2)
+                        task.wait(0.25)
 
                         remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
-                        task.wait(0.15)
+                        task.wait(0.2)
                         remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         
-                        task.wait(0.3)
+                        task.wait(0.35)
                     end)
                     releaseLock()
                 else
                     table.insert(eventCandyQueue, 1, item)
-                    task.wait(0.3)
+                    task.wait(0.5)
                 end
             end
         end
+        task.wait(0.1)
     end
 
     isEventSelling = false
@@ -1101,6 +1101,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено успішно. Цукерки більше не беруться в руки!",
+    Content = "Все завантажено! Обидві функції працюють ідеально.",
     Duration = 4,
 })
