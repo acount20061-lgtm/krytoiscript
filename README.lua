@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — фінальна робоча версія з надійними кліками
+-- UA Killer Hub | YBA — фінальна збірна версія (Автопродаж + Автоздача цукерок)
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -541,7 +541,7 @@ MainTab:CreateSlider({
 })
 
 -- =======================================================
--- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + АВТОКЛІКИ ДІАЛОГІВ)
+-- МАГАЗИН ТА ІВЕНТ (М'ЮТЕКС + КЛІКИ ДІАЛОГІВ)
 -- =======================================================
 local function acquireLock(timeout)
     timeout = timeout or 4
@@ -618,34 +618,45 @@ local function autoClickDialogueButtons()
     end
 end
 
--- Клік по 2-й кнопці для івенту (цукерки)
+-- Клік по 2-й кнопці для здачі цукерок
 local function clickOption2()
     local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return false end
-    local dialogueGui = playerGui:FindFirstChild("DialogueGui") or playerGui:FindFirstChild("Dialogue") or playerGui:FindFirstChild("DialogueBox")
+    
+    local dialogueGui = playerGui:FindFirstChild("DialogueGui") 
+        or playerGui:FindFirstChild("Dialogue") 
+        or playerGui:FindFirstChild("DialogueBox")
     if not dialogueGui then return false end
 
     local targetBtn = nil
     local startTime = tick()
 
-    while tick() - startTime < 1.5 do
+    while tick() - startTime < 2.0 do
         local candidates = {}
         for _, btn in ipairs(dialogueGui:GetDescendants()) do
             if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
                 local name = btn.Name:lower()
                 local text = (btn:IsA("TextButton") and btn.Text) or ""
                 local childText = btn:FindFirstChildOfClass("TextLabel")
-                if childText and childText.Text ~= "" then text = childText.Text end
+                if childText and childText.Text ~= "" then 
+                    text = childText.Text 
+                end
 
-                if not name:find("close") and not name:find("exit") and text ~= "x" then
-                    table.insert(candidates, { button = btn, y = btn.AbsolutePosition.Y, x = btn.AbsolutePosition.X })
+                if not name:find("close") and not name:find("exit") and text ~= "x" and text ~= "✕" then
+                    table.insert(candidates, { 
+                        button = btn, 
+                        y = btn.AbsolutePosition.Y, 
+                        x = btn.AbsolutePosition.X 
+                    })
                 end
             end
         end
 
         if #candidates >= 2 then
             table.sort(candidates, function(a, b)
-                if math.abs(a.y - b.y) > 10 then return a.y < b.y end
+                if math.abs(a.y - b.y) > 10 then 
+                    return a.y < b.y 
+                end
                 return a.x < b.x
             end)
             targetBtn = candidates[2].button
@@ -656,6 +667,18 @@ local function clickOption2()
 
     if targetBtn then
         pcall(function()
+            local bx = targetBtn.AbsolutePosition.X + (targetBtn.AbsoluteSize.X / 2)
+            local by = targetBtn.AbsolutePosition.Y + (targetBtn.AbsoluteSize.Y / 2)
+
+            if VirtualInputManager then
+                VirtualInputManager:SendMouseButtonEvent(bx, by, 0, true, game, 0)
+                task.wait(0.03)
+                VirtualInputManager:SendMouseButtonEvent(bx, by, 0, false, game, 0)
+            elseif VirtualUser then
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton1(Vector2.new(bx, by))
+            end
+
             if firesignal then
                 firesignal(targetBtn.MouseButton1Click)
                 firesignal(targetBtn.Activated)
@@ -668,7 +691,7 @@ local function clickOption2()
     return false
 end
 
--- Черга автопродажу (з оригінальними кліками з твого початкового скрипта)
+-- Черга автопродажу
 local function processSellQueue()
     if isSelling then return end
     isSelling = true
@@ -724,7 +747,7 @@ local function processSellQueue()
     isSelling = false
 end
 
--- Черга автоздачі цукерок
+-- Черга автоздачі цукерок (виправлена)
 local function processEventCandyQueue()
     if isEventSelling then return end
     isEventSelling = true
@@ -747,17 +770,21 @@ local function processEventCandyQueue()
             if remote and hum and eventNPC then
                 if acquireLock(4) then
                     pcall(function()
-                        remote:FireServer("PromptTriggered", eventNPC)
+                        hum:EquipTool(item)
                         task.wait(0.2)
 
+                        remote:FireServer("PromptTriggered", eventNPC)
+                        task.wait(0.25)
+
                         clickOption2()
-                        task.wait(0.15)
+                        task.wait(0.2)
 
                         remote:FireServer("DialogueType", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
+                        task.wait(0.15)
                         remote:FireServer("EndDialogue", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         remote:FireServer("DialogueEnd", { Option = "Option2", Dialogue = "Dialogue1", NPC = "Halloween Event" })
                         
-                        task.wait(0.2)
+                        task.wait(0.3)
                     end)
                     releaseLock()
                 else
@@ -1076,6 +1103,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено. Кнопки діалогів активовані!",
+    Content = "Завантажено успішно. Все працює ідеально!",
     Duration = 4,
 })
