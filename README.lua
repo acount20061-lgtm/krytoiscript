@@ -1,4 +1,4 @@
--- UA Killer Hub | YBA — фінальна збірна версія (Автопродаж + Автоздача цукерок)
+-- UA Killer Hub | YBA — збірна версія без взяття цукерок у руки
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
@@ -747,7 +747,7 @@ local function processSellQueue()
     isSelling = false
 end
 
--- Черга автоздачі цукерок (виправлена)
+-- Черга автоздачі цукерок (НЕ бере цукерки в руки)
 local function processEventCandyQueue()
     if isEventSelling then return end
     isEventSelling = true
@@ -770,9 +770,7 @@ local function processEventCandyQueue()
             if remote and hum and eventNPC then
                 if acquireLock(4) then
                     pcall(function()
-                        hum:EquipTool(item)
-                        task.wait(0.2)
-
+                        -- Цукерки НЕ беруться в руки (хуманітарний рядок EquipTool прибрано)
                         remote:FireServer("PromptTriggered", eventNPC)
                         task.wait(0.25)
 
@@ -1103,6 +1101,6 @@ end)
 
 Rayfield:Notify({
     Title = "UA Killer Hub",
-    Content = "Завантажено успішно. Все працює ідеально!",
+    Content = "Завантажено успішно. Цукерки більше не беруться в руки!",
     Duration = 4,
 })
