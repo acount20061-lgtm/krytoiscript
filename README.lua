@@ -1,4 +1,4 @@
-- UA Killer Hub | YBA — Версія з виправленим AutoSell та MonHub GUI
+- UA Killer Hub | YBA 
 repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
